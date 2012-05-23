@@ -2,7 +2,8 @@
 #
 # Copyright 2012 Google Inc. All Rights Reserved.
 
-"""Given a Message ID and list of users, moves message to each user's Trash.
+"""Given a list of users and a Message ID or Gmail query, moves message(s) to
+   a specified label (defaulting to each user's Trash).
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,11 +28,12 @@ DERIVATIVES.
 ###########################################################################
 
 Description:
-Given a specific message ID, this script moves the message (using IMAP)
-to the Trash label for all users listed in the given user_list file.
-Optionally, the message can also be purged from the Trash label. If left
-in the Trash label, the message will remain until the user takes action or
-Gmail automatically purges it.
+Given a specific message ID or a Gmail query, this script moves the messages
+(using IMAP) to a specified label or, by default, to each user's Trash for all
+users listed in the given user_list file. If the message is moved to the Trash,
+it can also be automatically purged.
+
+NOTE: IMAP must be turned on for the domain in order to move these messages.
 
 Usage:
 imap_email_mover.py [options]
@@ -39,21 +41,56 @@ imap_email_mover.py [options]
 Options:
   -h, --help            show this help message and exit
   --consumer_key=CONSUMER_KEY
-                        The OAuth consumer key for the domain.
+                        The OAuth consumer key for the domain. Required.
   --consumer_secret=CONSUMER_SECRET
-                        The OAuth consumer secret for the domain.
+                        The OAuth consumer secret for the domain. Required.
   --message_id=MESSAGE_ID
                         The message id for the message to move to the trash.
+                        Mutually exclusive of --query.
+  --query=QUERY
+                        A Gmail query to identify messages to be moved.
+                        Mutually exclusive of --message_id.
   --user_list=USER_LIST
                         Filename containing a list of users
                         (full email address) that require the message to be
-                        moved to the trash.
+                        moved to the trash. Required.
+  --move=[yes|no]
+                        Whether to move the messages to the new label (yes) or
+                        just add the new label (no). Default is 'no'. If 'yes',
+                        a label must be provided.
+  --label=LABEL
+                        Label to move message(s) to. Default is Gmail's
+                        system Trash label. If the label doesn't exist, it will
+                        be created.
+                        Mutually exclusive of --purge.
   --purge=[yes|no]
                         Whether to permanently purge the message (yes) or
-                        not (no). Default is 'no'.
+                        not (no). Mutually exclusive of --label.
+                        Default is 'no'.
 
-NOTE: IMAP must be turned on for the domain in order to move these messages.
+Examples:
+  For all users in the user list file, permanently purge all messages sent to
+  lawyer@example.domain with the words "privileged" and "confidential" in the
+  text.
+      imap_email_mover.py --consumer_key='...' --consumer_secret='...' \
+          --user_list='...' \
+          --query='privileged confidential to:lawyer@example.domain' \
+          --purge
 
+  For all users in the user_list file, add a "Litigation" label to any message
+  from before January 1st 2012 with the word "litigation" in the subject.
+      imap_email_mover.py --consumer_key='...' --consumer_secret='...' \
+          --user_list='...' \
+          --query='subject:litigation before:2012-01-01' \
+          --label='Litigation'
+
+  For all users in the user list file, move all messages in the inbox to the
+  "Migrated" label.
+      imap_email_mover.py --consumer_key='...' --consumer_secret='...' \
+          --user_list='...' \
+          --query='in:inbox' \
+          --label=Migrated \
+          --move=yes
 """
 
 import base64
@@ -194,21 +231,21 @@ def GenerateXOauthString(consumer, xoauth_requestor_id, method, protocol):
   return '%s %s %s' % (method, request_url, param_list)
 
 
-def ImapSearch(user, xoauth_string, message_id, purge, imap_debug):
+def ImapSearch(user, xoauth_string, message_id, query, move, destination_label,
+               purge, imap_debug):
   """Searches the user inbox for a specific message.
 
   Args:
     user: The Google Mail username that we are searching
     xoauth_string: The authentication string for the aforementioned user
     message_id: The message ID to be searched
+    query: A query to find messages
+    move: Whether to move the message or just add a label
+    destination_label: The label to move the messages to
     purge: Whether to purge the message
     imap_debug: IMAP debug level
-
-  Returns:
-    Dictionary with status of the user
   """
 
-  search_query = '(HEADER Message-ID "%s")' % message_id
   messages_found = 0
 
   # Setup the IMAP connection and authenticate using OAUTH
@@ -221,10 +258,14 @@ def ImapSearch(user, xoauth_string, message_id, purge, imap_debug):
     logging.error('Error authenticating with OAUTH credentials provided [%s]',
                   str(e))
 
+  # Attempt to create the destination label. If it already exists, nothing
+  # will happen.
+  imap_connection.create(destination_label)
+
   # By default, we want to search for the message in the All Mail folder since
   # all messages live there. IMAP does not allow us to search for a message in
   # the entire mailbox but luckily Gmail has the "All Mail" folder.
-  # We also search for the messag in the Spam label since spam messages do not
+  # We also search for the message in the Spam label since spam messages do not
   # show up in All Mail.
   labels = ['[Gmail]/All Mail', '[Gmail]/Spam']
 
@@ -233,34 +274,45 @@ def ImapSearch(user, xoauth_string, message_id, purge, imap_debug):
     messages_found = 0
     logging.info('[%s] Searching label %s', user, label)
     imap_connection.select(label)
-    unused_type, data = imap_connection.search(None, search_query)
-    # For any message that we find, we will copy it to the Trash and purge it
-    # from the inbox. IMAP does not have a move command
+    #messages_returned = len(data[0])
+    #print "%d results returned" % messages_returned
+
+    if message_id is not None:
+      search_query = '(HEADER Message-ID "%s")' % message_id
+      unused_type, data = imap_connection.search(None, search_query)
+    else:
+      unused_type, data = imap_connection.uid('SEARCH', 'X-GM-RAW', query)
+
+    total_in_label = len(data[0].split())
+    # For any message that we find, we will copy it to the destination label.
+    # and remove the original label. IMAP does not have a move command.
     for num in data[0].split():
       messages_found += 1
-      imap_connection.copy(num, '[Gmail]/Trash')
-      imap_connection.expunge()
+      logging.info("[%s] Message #%s (%s of %s):", user, num, messages_found,
+                   total_in_label)
+
+      if purge.lower() == 'yes':
+        imap_connection.uid('COPY', num, '[Gmail]/Trash')
+        imap_connection.expunge()
+        imap_connection.store(num, '+FLAGS', '\\Deleted')
+        imap_connection.expunge()
+        logging.info("[%s]   Purged", user)
+      else:
+        if move.lower() == 'yes':
+          unused_type, label_data = imap_connection.uid('FETCH', num,
+                                                        'X-GM-LABELS')
+          # Extracting the labels from a text string IMAP result...
+          labels = (((label_data[0].split('('))[2].split(')'))[0]).split()
+          for label in labels:
+            logging.info('[%s]     Removing label: %s', user, label)
+            imap_connection.uid('STORE', num, '-X-GM-LABELS', label)
+            imap_connection.expunge()
+
+        logging.info('[%s]   Adding label: %s', user, destination_label)
+        imap_connection.uid('COPY', num, destination_label)
+        imap_connection.expunge()
+
     logging.info('[%s] Found %s messages(s) in %s', user, messages_found, label)
-
-  # Check if message is in trash and the read state of the message
-  label = '[Gmail]/Trash'
-  imap_connection.select(label)
-  messages_found = 0
-  unused_type, data = imap_connection.search(None, search_query)
-  for num in data[0].split():
-    messages_found += 1
-    unused_type, response = imap_connection.fetch(num, '(FLAGS)')
-    if response[0].find('\\Seen') == -1:
-      logging.info('[%s] Found message in %s - Message is unread', user, label)
-    else:
-      logging.info('[%s] Found message in %s - Message is read', user, label)
-
-    if purge == 'yes':
-      imap_connection.store(num, '+FLAGS', '\\Deleted')
-      imap_connection.expunge()
-      logging.info('[%s] Message has been purged from Gmail', user)
-  logging.info('[%s] Total message(s) found in %s is %s',
-               user, label, messages_found)
 
   # Close the connection for the user
 
@@ -333,11 +385,18 @@ def ParseInputs():
   parser.add_option('--consumer_secret', dest='consumer_secret',
                     help='The OAuth consumer secret for the domain.')
   parser.add_option('--message_id', dest='message_id',
-                    help='The message id for the message to move to the trash.')
+                    help='The message id for the message to move.')
+  parser.add_option('--query', dest='query',
+                    help='A Gmail query to identify messages.')
   parser.add_option('--user_list', dest='user_list',
                     help="""Filename containing a list of users
                             (full email address) that require the message to be
                             moved to the trash.""")
+  parser.add_option('--move', dest='move', default='no',
+                    help="""Whether to move the message (yes) or
+                            just add the new label (no). Default is 'no'.""")
+  parser.add_option('--label', dest='label', default='[Gmail]/Trash',
+                    help='The label to move messages to.')
   parser.add_option('--purge', dest='purge', default='no',
                     help="""Whether to permanently purge the message (yes) or
                             not (no). Default is 'no'.""")
@@ -354,17 +413,47 @@ def ParseInputs():
     parser.exit(msg='\nUnexpected arguments: %s\n' % ' '.join(args))
 
   invalid_arguments = False
+  search_terms = 0
+
   if options.consumer_key is None:
     print '--consumer_key is required'
     invalid_arguments = True
+
   if options.consumer_secret is None:
     print '--consumer_secret is required'
     invalid_arguments = True
-  if options.message_id is None:
-    print '--message_id is required'
-    invalid_arguments = True
+
   if options.user_list is None:
     print '--user_list is required'
+    invalid_arguments = True
+
+  if options.message_id is not None:
+    search_terms += 1
+
+  if options.query is not None:
+    search_terms += 1
+
+  if search_terms == 0:
+    print '--message_id or --query is required'
+    invalid_arguments = True
+  elif search_terms > 1:
+    print 'use of --message_id and --query are mutually exclusive'
+    invalid_arguments = True
+
+  if options.move != 'yes' and options.move != 'no':
+    print '--move must be "yes" or "no"'
+    invalid_arguments = True
+
+  if options.move == 'yes' and options.label == '[Gmail]/Trash':
+    print '--move must have a --label specified that isn\'t "Trash"'
+    invalid_arguments = True
+
+  if options.purge != 'yes' and options.purge != 'no':
+    print '--purge must be "yes" or "no"'
+    invalid_arguments = True
+
+  if options.label != '[Gmail]/Trash' and options.purge != 'no':
+    print '--purge can only be used if moving messages to the Trash'
     invalid_arguments = True
 
   if invalid_arguments:
@@ -394,7 +483,8 @@ def main():
     xoauth_string = GenerateXOauthString(consumer, user_email, 'GET', 'imap')
 
     # Run the IMAP search
-    ImapSearch(user_email, xoauth_string, options.message_id, options.purge,
+    ImapSearch(user_email, xoauth_string, options.message_id, options.query,
+               options.move, options.label, options.purge,
                options.imap_debug_level)
 
   print 'Log file is: %s' % log_filename
