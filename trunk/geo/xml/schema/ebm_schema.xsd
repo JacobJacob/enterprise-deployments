@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+<!-- simple elements -->
+<xs:element name="filename" type="xs:string"/>
+<xs:element name="tags" type="xs:string"/>
+<xs:element name="description" type="xs:string"/>
+<xs:element name="layerName" type="xs:string"/>
+<xs:element name="mosaicName" type="xs:string"/>
+<xs:element name="acquisitionDate" type="xs:string"/>
+<xs:element name="sidecar" type="xs:string"/>
+<xs:element name="type" type="xs:string" fixed="image"/>
+<xs:element name="name">
+  <xs:simpleType>
+    <xs:restriction base="xs:string">
+      <xs:maxLength value="256"/>
+    </xs:restriction>
+  </xs:simpleType>
+</xs:element>
+
+<xs:element name="attribution">
+  <xs:simpleType>
+    <xs:restriction base="xs:string">
+      <xs:maxLength value="256"/>
+    </xs:restriction>
+  </xs:simpleType>
+</xs:element>
+
+<!-- complex elements -->
+<xs:element name="sidecars">
+  <xs:complexType>
+    <xs:sequence>
+      <xs:element ref="sidecar" minOccurs="1" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:element>
+
+<xs:element name="asset">
+    <xs:complexType>
+      <xs:all>
+        <xs:element ref="filename"/>
+        <xs:element ref="type"/>
+        <xs:element ref="name"/>
+        <xs:element ref="acquisitionDate"/>
+        <xs:element ref="attribution"/>
+        <xs:element ref="description" minOccurs="0" maxOccurs="1"/>
+        <xs:element ref="tags" minOccurs="1" maxOccurs="1"/>
+        <xs:element ref="mosaicName" minOccurs="0" maxOccurs="1"/>
+        <xs:element ref="layerName" minOccurs="0" maxOccurs="1"/>
+        <xs:element ref="sidecars" minOccurs="0" maxOccurs="1"/>
+      </xs:all>
+    </xs:complexType>
+</xs:element>
+
+<xs:element name="assetlist">
+  <xs:complexType>
+    <xs:sequence>
+      <xs:element ref="asset" minOccurs="1" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:element>
+
+</xs:schema>
