@@ -114,7 +114,8 @@ function validate_data_dir {
     if [[ $number_of_ebm_files -gt 1 ]]; then
       echo "Error"
       let "f++"
-      echo "Error: $gebs/ has more than 1 Google Earth Builder file" &>> $LOG_FILE
+      echo "Error: $gebs/ has more than 1 Google Earth Builder file" \
+        | tee -a $LOG_FILE
     else
       echo "OK"
     fi
@@ -172,7 +173,8 @@ function validate_ebm_against_schema {
     else
       echo "Error"
       let "f++"
-      xmllint --noout --schema $SCHEMA_FILE $gebs &>> $LOG_FILE
+      xmllint --noout --schema $SCHEMA_FILE $gebs \
+        | tee -a $LOG_FILE
     fi
   done
 
@@ -234,7 +236,8 @@ function check_valid_images {
       else
         echo "Error"
         let "f++"
-        gdalinfo $dir_prefix/$i &>> $LOG_FILE
+        gdalinfo $dir_prefix/$i \
+          | tee -a $LOG_FILE
       fi
     done
   done
@@ -286,7 +289,8 @@ function checksum_images {
     images+="$(cat $gebs | awk -F'</?filename>' 'NF>1{print $2}')"
     for i in $images; do
       # Prepend the directory of the Google Earth Builder file we are working on.
-      sha1sum -b "$dir_prefix/$i" &>> $CHECKSUM_FILE
+      sha1sum -b "$dir_prefix/$i" \
+        | tee -a $CHECKSUM_FILE
       echo -n "  Creating checksum for: $dir_prefix/$i...  "
       if [[ $? -eq 0 ]]; then
         echo "OK"
@@ -294,7 +298,8 @@ function checksum_images {
       else
         echo  "Error"
         let "f++"
-        sha1sum -b "$dir_prefix/$i" &>> $LOG_FILE
+        sha1sum -b "$dir_prefix/$i" \
+          | tee -a $LOG_FILE
       fi
     done
   done
