@@ -228,8 +228,8 @@ function check_valid_images {
     images+="$(cat $gebs | awk -F'</?filename>' 'NF>1{print $2}')"
     for i in $images; do
       # Prepend the directory of the Google Earth Builder file we are working on.
-      gdalinfo $dir_prefix/$i &> /dev/null
       echo -n "  Verifying: $dir_prefix/$i...  "
+      gdalinfo $dir_prefix/$i &> /dev/null
       if [[ $? -eq 0 ]]; then
         echo "OK"
         let "s++"
@@ -289,9 +289,9 @@ function checksum_images {
     images+="$(cat $gebs | awk -F'</?filename>' 'NF>1{print $2}')"
     for i in $images; do
       # Prepend the directory of the Google Earth Builder file we are working on.
+      echo -n "  Creating checksum for: $dir_prefix/$i...  "
       sha1sum -b "$dir_prefix/$i" \
         | tee -a $CHECKSUM_FILE
-      echo -n "  Creating checksum for: $dir_prefix/$i...  "
       if [[ $? -eq 0 ]]; then
         echo "OK"
         let "s++"
