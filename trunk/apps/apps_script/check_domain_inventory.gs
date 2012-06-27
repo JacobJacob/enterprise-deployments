@@ -38,7 +38,7 @@
 //       output as "Not Provisioned in GApps" until the domain is verified.
 function checkDomainInventory() {
 
-  var spreadsheet_key = "0Au3xP4rxIKlHdFlCMy0ybFVoSzNfSzgwb3lrWVBVFE";
+  var spreadsheet_key = "YOUR_SPREADSHEET_KEY";
   var sheet_name = "Domains";
   var num_data_columns = 1;
   var spreadsheet = SpreadsheetApp.openById(spreadsheet_key);
