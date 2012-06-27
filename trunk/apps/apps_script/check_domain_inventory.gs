@@ -33,6 +33,9 @@
 // NOTE: The check to see if the domain is Team Edition is only looking
 //       for the string "To join, <domain> create an account here."
 //       when trying to access the Control Panel for the domain.
+//
+//       Also, domains which are unverified Apps domains will appear in this
+//       output as "Not Provisioned in GApps" until the domain is verified.
 function checkDomainInventory() {
 
   var spreadsheet_key = "0Au3xP4rxIKlHdFlCMy0ybFVoSzNfSzgwb3lrWVBVFE";
