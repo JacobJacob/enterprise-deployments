@@ -50,7 +50,7 @@ function reportImapEnabledUsers() {
   }
 
   if (imap_enabled_users.length > 0) {
-    MailApp.sendEmail(email_address, "Users With IMAP Enabled", "email body",
+    MailApp.sendEmail(report_recipient_email_address, "Users With IMAP Enabled", "email body",
                       {htmlBody: _getEmailHtml(domain, imap_enabled_users)});
   }
 
