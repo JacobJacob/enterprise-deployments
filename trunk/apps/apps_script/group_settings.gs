@@ -1,16 +1,4 @@
 // The following script will check for group settings for each group.
-// Usage:
-//
-// - Substitute the domain name to the DOMAIN variable.
-// - Substitute the desired application/service name to APP_NAME variable.
-// - Substitute the spreadsheet key to the SPREADSHEET_KEY variable below.
-// - Substitute the sheet name to the SHEET_NAME variable below.
-// - Substitute the oauth client id to the CLIENT_ID variable below.
-// - Substitute the oauth client secret to the CLIENT_SECRET variable below.
-// - Substitute the estimated pagination size estimated by total count of
-//   groups in domain devided by 100 rounded up. See the Provisioning API
-//   reference below for details on Results Pagination.
-//   https://developers.google.com/google-apps/provisioning/reference#
 //
 //**********************************************************************
 //*                      LICENSING AND DISCLAIMER                      *
@@ -37,6 +25,19 @@
 //   TO USE, MODIFICATION OR DISTRIBUTION OF THIS CODE OR ITS
 //   DERIVATIVES.
 //**********************************************************************
+//
+// Usage:
+//
+// - Substitute the domain name to the DOMAIN variable.
+// - Substitute the desired application/service name to APP_NAME variable.
+// - Substitute the spreadsheet key to the SPREADSHEET_KEY variable below.
+// - Substitute the sheet name to the SHEET_NAME variable below.
+// - Substitute the oauth client id to the CLIENT_ID variable below.
+// - Substitute the oauth client secret to the CLIENT_SECRET variable below.
+// - Substitute the estimated pagination size estimated by total count of
+//   groups in domain devided by 100 rounded up. See the Provisioning API
+//   reference below for details on Results Pagination.
+//   https://developers.google.com/google-apps/provisioning/reference#
 //
 //GLOBAL VARIABLES
 
