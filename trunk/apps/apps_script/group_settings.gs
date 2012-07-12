@@ -53,7 +53,7 @@ function checkGroupSettings() {
   var api_scope = 'https://www.googleapis.com/auth/apps.groups.settings';
   var spreadsheet = SpreadsheetApp.openById(SPREADSHEET_KEY);
   var sheet = spreadsheet.getSheetByName(SHEET_NAME);
-  var header = [['name', 'email', 'description',
+  var header = [['name', 'email', 'description', 'whoCanViewMembership',
                  'whoCanJoin', 'whoCanViewGroup', 'whoCanInvite',
                  'allowExternalMembers', 'whoCanPostMessage', 'allowWebPosting',
                  'isArchived', 'archiveOnly', 'showInGroupDirectory',
@@ -64,9 +64,9 @@ function checkGroupSettings() {
                  'maxMessageBytes', 'messageDisplayFont']];
 
   sheet.clear().clearContents().clearFormats();
-  Utilities.sleep(3000);
-  sheet.getRange(1, 1, 1, 22).setValues(header).setBackgroundColor('Lightblue');
-  sheet.getRange(1, 1, 1, 22).setFontWeight('Bold');
+  Utilities.sleep(500);
+  sheet.getRange(1, 1, 1, 23).setValues(header).setBackgroundColor('Lightblue');
+  sheet.getRange(1, 1, 1, 23).setFontWeight('Bold');
 
   try {
     var groups = _getAllGroups();
@@ -79,7 +79,7 @@ function checkGroupSettings() {
   for (var i = 0; i < groups.length; i++) {
     var url = 'https://www.googleapis.com/groups/v1/groups/' + groups[i];
     try {
-      Utilities.sleep(1000);
+      Utilities.sleep(500);
       var result = UrlFetchApp.fetch(url, _googleOauth(APP_NAME, api_scope));
       var result = result.getContentText();
     } catch (err) {
@@ -93,6 +93,7 @@ function checkGroupSettings() {
     var email = entry.email.getText();
     var name = entry.name.getText();
     var description = entry.description.getText();
+    var whoCanViewMembership = entry.whoCanViewMembership.getText();
     var whoCanJoin = entry.whoCanJoin.getText();
     var whoCanViewGroup = entry.whoCanViewGroup.getText();
     var whoCanInvite = entry.whoCanInvite.getText();
@@ -113,7 +114,7 @@ function checkGroupSettings() {
     var membersCanPostAsTheGroup = entry.membersCanPostAsTheGroup.getText();
     var messageDisplayFont = entry.messageDisplayFont.getText();
 
-    var settings = [[name, email, description,
+    var settings = [[name, email, description, whoCanViewMembership,
                  whoCanJoin, whoCanViewGroup, whoCanInvite,
                  allowExternalMembers, whoCanPostMessage, allowWebPosting,
                  isArchived, archiveOnly, showInGroupDirectory,
@@ -122,7 +123,7 @@ function checkGroupSettings() {
                  allowGoogleCommunication, messageDisplayFont,
                  maxMessageBytes, messageDisplayFont]];
 
-    sheet.getRange(i + 2, 1, 1, 22).setValues(settings);
+    sheet.getRange(i + 2, 1, 1, 23).setValues(settings);
   }
 
   function _getAllGroups() {
