@@ -167,7 +167,7 @@ function validate_ebm_against_schema {
     local dir_prefix="$(dirname $gebs)"
     echo -n "  Verifying: $gebs... "
     xmllint --noout --schema $SCHEMA_FILE $gebs &> /dev/null
-    if [[ $? -eq 0 ]]; then
+    if [[ "$?" -eq 0 ]]; then
       echo "OK"
       let "s++"
     else
@@ -179,15 +179,32 @@ function validate_ebm_against_schema {
   done
 
   # Check the success/failure of actions above, we can't tolerate failures.
-  if [[ "$f" -eq 0 ]]; then
-    echo "  Success: Verified all Google Earth Builder Files ($s)" \
-          | tee -a $LOG_FILE
-  else
+  if [[ "$f" -gt 0 ]]; then
     echo "  Failure: Unable to validate some Google Earth Builder Files"
     echo "    Refer to $LOG_FILE for details... exiting"
     exit 1
   fi
 
+  # Check to make sure we don't have duplicate filename or sidecar elements
+  for gebs in $geb_files; do
+    local dir_prefix="$(dirname $gebs)"
+    local images="$(cat $gebs | awk -F'</?sidecar>' 'NF>1{print $2}')"
+    images+="$(cat $gebs | awk -F'</?filename>' 'NF>1{print $2}')"
+  done
+  # Check if the value is null, if not error out.
+  if [[ -n $(echo $images | tr ' ' '\n' | sort -d) ]]; then
+    echo "  Failure: We have duplicate sidecar/filename element values" \
+          | tee -a $LOG_FILE
+    echo "    Refer to $LOG_FILE for details... exiting"
+    echo "    Repeated sidecar/filename(s): " &> $LOG_FILE
+    echo $images \
+      | tr ' ' '\n' \
+      | sort \
+      | uniq -cd &> $LOG_FILE
+    exit 1
+  fi
+  echo "  Success: Verified all Google Earth Builder Files ($s)" \
+        | tee -a $LOG_FILE
 }
 
 #######################################
@@ -218,16 +235,17 @@ function check_valid_images {
   local dir_prefix=''
 
   # Get a list of all the images from the Google Earth builder
-  # files.  Then attempt to run gdalinfo installed with Google Earth Fusion)
-  # and check the returncode for success.
+  # files. Attempt to run gdalinfo (installed with Google Earth Fusion) and both
+  # make sure the file exists and is a valid image, fail based on return code.
   echo "Process: Checking for valid images" \
         | tee -a $LOG_FILE
   for gebs in $geb_files; do
     local dir_prefix="$(dirname $gebs)"
     local images="$(cat $gebs | awk -F'</?sidecar>' 'NF>1{print $2}')"
     images+="$(cat $gebs | awk -F'</?filename>' 'NF>1{print $2}')"
+    # A loop to perform the file exists and validates with gdalinfo.
     for i in $images; do
-      # Prepend the directory of the Google Earth Builder file we are working on.
+      # Prepend the directory of the Google Earth Builder file we're working on.
       echo -n "  Verifying: $dir_prefix/$i...  "
       gdalinfo $dir_prefix/$i &> /dev/null
       if [[ $? -eq 0 ]]; then
@@ -292,7 +310,7 @@ function checksum_images {
       echo -n "  Creating checksum for: $dir_prefix/$i...  "
       sha1sum -b "$dir_prefix/$i" \
         | tee -a $CHECKSUM_FILE
-      if [[ $? -eq 0 ]]; then
+      if [[ "${PIPESTATUS[0]}" -eq 0 ]]; then
         echo "OK"
         let "s++"
       else
@@ -332,18 +350,18 @@ function usage {
 
   Flags:
   -s The path to the schema file
-  -d The top level directory with your data
+  -d The top level directory, from which validation starts
   -c Create a checksum file for all the images
 
   Example:
-  $0 -s ./ebm_schema.xsd -d ./data/ -c
+  $0 -s ~/manifest_schema.xsd -d . -c
 
 EOF
 }
 
 main () {
 
-  if [[ $# -eq 0 ]]; then
+  if [[ "$#" -eq 0 ]]; then
     usage
     exit 1
   fi
@@ -389,7 +407,7 @@ main () {
   # Make sure we can write to the directory.
   echo "Process: Trying to create our logfile: $PWD/$LOG_FILE"
   touch $LOG_FILE &> /dev/null
-  if [[ $? -gt 0 ]]; then
+  if [[ "$?" -gt 0 ]]; then
     echo "  Error: Unable to create our logfile"
   else
     echo "  Success: We have a working logfile!"
@@ -401,7 +419,7 @@ main () {
         | tee -a $LOG_FILE
   for cmd in $REQ_PROGRAMS; do
     which $cmd &> /dev/null
-    if [[ $? -gt 0 ]]; then
+    if [[ "$?" -gt 0 ]]; then
       echo "  Error: Required program ($cmd) does not exist" \
             | tee -a $LOG_FILE
       echo "    Refer to $LOG_FILE for details... exiting"
