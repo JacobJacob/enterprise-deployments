@@ -290,6 +290,16 @@ def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
       except Exception, e:
         subject = 'unknown_subject'
 
+      try:
+        message_id = (re.search('Message-ID: .*[\r\n]',
+                                message).group(0))[11:].strip()
+        processed_messages.append(message_id)
+      except Exception, e:
+        message_id = 'unknown_message_id'
+
+      if message_id in processed_messages:
+        message = 'Duplicate message with Message ID: ' + message_id
+
       title = sender + ": " + subject
       document_reference = gdata.docs.data.Resource(type='document',
                                                     title=title)
