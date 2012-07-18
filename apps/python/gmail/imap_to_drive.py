@@ -220,6 +220,7 @@ def CreateFolder(connection, name, owner=None, parent=None):
   return folder
 
 
+processed_messages = []
 def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
                         query, owner):
   """ Exports all messages under an IMAP label to a comparable Drive folder.
@@ -241,27 +242,30 @@ def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
   try:
     (result, unused_data) = imap_connection.select(label)
   except Exception, e:
-    logging.info('Skipping label %s', label)
+    logging.info('%s: Skipping label: %s', datetime.datetime.now(), label)
     return
  
-  logging.info('Label %s selected', label)
+  logging.info('%s: Processing label: %s', datetime.datetime.now(), label)
 
   unused_type, data = imap_connection.uid('SEARCH', 'X-GM-RAW', query)
   messages = data[0].split()
   total_in_label = len(messages)
-  logging.info('Messages in %s: %s', label, total_in_label)
 
   if messages:
     folder = CreateFolder(docs_connection, label, owner, parent_folder)
 
+    message_count = 0
     for message_locator in messages:
+      message_count += 1
       (result, message_info) = imap_connection.fetch(message_locator,
                                                      '(RFC822)')
 
       try:
         (unused_data, message) = message_info[0]
       except Exception, e:
-        logging.info('Message not retrieved. Skipping.')
+        logging.info('%s:   %s of %s: Message not retrieved. Skipping.',
+                     datetime.datetime.now(), message_count,
+                     total_in_label)
         continue
 
       try:
@@ -294,18 +298,23 @@ def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
                                      content_type='text/plain',
                                      content_length=len(message))
 
-      remaining_tries = 5
-      while remaining_tries:
+      remaining_tries = 4
+      while remaining_tries >= 0:
         try:
           document = docs_connection.CreateResource(document_reference,
                                                     media=media,
                                                     collection=folder)
-          remaining_tries = 0
+          remaining_tries = -1
         except Exception, e:
           remaining_tries -= 1
           if remaining_tries == 0:
-            logging.info('Could not add %s to collection %s', title, label)
-           
+            logging.info('%s:  %s of %s: Could not add %s to collection %s',
+                         datetime.datetime.now(), message_count,
+                         total_in_label, title, label)
+
+      if remaining_tries == 0:
+        continue
+
       if owner:
         acl_entry = gdata.docs.data.AclEntry(
             scope=gdata.acl.data.AclScope(value=owner, type='user'),
@@ -314,7 +323,10 @@ def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
         docs_connection.AddAclEntry(document, acl_entry,
                                     send_notifications=False)
 
-      logging.info('Added %s to collection %s', title, label)
+      logging.info('%s:   %s of %s: Added "%s" to collection %s',
+                   datetime.datetime.now(), message_count, total_in_label,
+                   title, label)
+
 
 
 def ImapSearch(user, consumer_key, consumer_secret, owner, query, imap_debug):
@@ -332,7 +344,8 @@ def ImapSearch(user, consumer_key, consumer_secret, owner, query, imap_debug):
   messages_found = 0
 
   # Setup the IMAP connection and authenticate using OAUTH
-  logging.info('[%s] Attempting to login to mailbox', user)
+  logging.info('%s: Attempting IMAP login: %s', datetime.datetime.now(),
+               user)
   imap_connection = imaplib.IMAP4_SSL('imap.gmail.com', 993)
   imap_connection.debug = imap_debug
 
@@ -346,7 +359,7 @@ def ImapSearch(user, consumer_key, consumer_secret, owner, query, imap_debug):
                   str(e))
 
   # Setup the Drive connection and authenticate using OAUTH
-  logging.info('[%s] Attempting to login to Drive', owner)
+  logging.info('%s: Attempting login Drive', datetime.datetime.now())
   docs_connection = docs_client.DocsClient(source='docs_meta-v1')
   docs_connection.auth_token = gdata.gauth.TwoLeggedOAuthHmacToken(
       consumer_key, consumer_secret, user)
@@ -381,7 +394,7 @@ def ImapSearch(user, consumer_key, consumer_secret, owner, query, imap_debug):
     
   imap_connection.close()
   imap_connection.logout()
-  logging.info('[%s] IMAP connection sucessfully closed', user)
+  logging.info('%s: Processing complete.', datetime.datetime.now())
 
 
 def GetTimeStamp():
