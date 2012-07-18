@@ -299,6 +299,8 @@ def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
 
       if message_id in processed_messages:
         message = 'Duplicate message with Message ID: ' + message_id
+        logging.info('%s:     The following message is a duplicate:',
+                     datetime.datetime.now())
 
       title = sender + ": " + subject
       document_reference = gdata.docs.data.Resource(type='document',
@@ -318,7 +320,7 @@ def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
         except Exception, e:
           remaining_tries -= 1
           if remaining_tries == 0:
-            logging.info('%s:  %s of %s: Could not add %s to collection %s',
+            logging.info('%s:     %s of %s: Could not add %s to collection %s',
                          datetime.datetime.now(), message_count,
                          total_in_label, title, label)
 
