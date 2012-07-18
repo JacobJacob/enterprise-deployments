@@ -305,22 +305,23 @@ def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
           processed_messages.append(message_id)
 
       title = sender + ": " + subject
-      document_reference = gdata.docs.data.Resource(type='document',
-                                                    title=title)
-
-      media = gdata.data.MediaSource(file_handle=StringIO.StringIO(message),
-                                     content_type='text/plain',
-                                     content_length=len(message))
 
       remaining_tries = 4
       while remaining_tries >= 0:
         try:
+          document_reference = gdata.docs.data.Resource(type='document',
+                                                        title=title)
+
+          media = gdata.data.MediaSource(file_handle=StringIO.StringIO(message),
+                                         content_type='text/plain',
+                                         content_length=len(message))
+
           document = docs_connection.CreateResource(document_reference,
                                                     media=media,
                                                     collection=folder)
           remaining_tries = -1
         except Exception, e:
-          time.sleep(10)
+          time.sleep(3)
           logging.info('%s:     Retrying the following message:',
                        datetime.datetime.now())
           remaining_tries -= 1
