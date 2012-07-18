@@ -320,6 +320,9 @@ def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
                                                     collection=folder)
           remaining_tries = -1
         except Exception, e:
+          time.sleep(10)
+          logging.info('%s:     Retrying the following message:',
+                       datetime.datetime.now())
           remaining_tries -= 1
           if remaining_tries == 0:
             logging.info('%s:     %s of %s: Could not add %s to collection %s',
