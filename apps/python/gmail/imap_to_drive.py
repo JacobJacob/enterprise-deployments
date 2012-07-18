@@ -276,7 +276,7 @@ def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
           sender_full = '<unknown_user@unknown_domain>'
 
       try:
-        sender = re.search("[a-z0-9\'\-\+\._]*@[a-z0-9\-\.]*",
+        sender = re.search("[A-Za-z0-9\'\-\+\._]*@[A-Za-z0-9\-\.]*",
                            sender_full).group(0).strip()
       except Exception, e:
         sender = 'unknown_sender'
