@@ -219,6 +219,15 @@ def CreateFolder(connection, name, owner=None, parent=None):
 
   return folder
 
+def GetHeaderFromMessage(message, header):
+  tag_length = len(header) + 2
+
+  try:
+    value = (re.search(header + ': .*[\r\n]', message).group(0))[tag_length:]
+  except Exception, e:
+    value = ''
+
+  return value.strip()
 
 processed_messages = []
 def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
@@ -239,44 +248,29 @@ def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
   Returns:
     Nothing
   """
-  try:
-    (result, unused_data) = imap_connection.select(label)
-  except Exception, e:
-    logging.info('%s: Skipping label: %s', datetime.datetime.now(), label)
-    return
- 
-  logging.info('%s: Processing label: %s', datetime.datetime.now(), label)
+  message_locators = imap_connection.GetMessageLocatorsInLabel(label, query)
 
-  unused_type, data = imap_connection.uid('SEARCH', 'X-GM-RAW', query)
-  messages = data[0].split()
-  total_in_label = len(messages)
+  total_in_label = len(message_locators)
 
-  if messages:
+  if message_locators:
     folder = CreateFolder(docs_connection, label, owner, parent_folder)
 
     message_count = 0
-    for message_locator in messages:
+    for message_locator in message_locators:
       message_count += 1
-      (result, message_info) = imap_connection.fetch(message_locator,
-                                                     '(RFC822)')
+      message = imap_connection.GetMessage(message_locator)
 
-      try:
-        (unused_data, message) = message_info[0]
-      except Exception, e:
-        logging.info('%s:   %s of %s: Message not retrieved. Skipping.',
-                     datetime.datetime.now(), message_count,
-                     total_in_label)
+      if not message:
+        logging.info('%s:   %s of %s: Could not retrieve message.',
+                     datetime.datetime.now(), message_count, total_in_label)
         continue
 
-      try:
-        sender_full = (re.search('From: .*[\r\n]', message).group(0))[6:]
-      except Exception, e:
-        sender_full = ''
+      sender_full = GetHeaderFromMessage(message, 'From')
 
       if not sender_full:
-        try:
-          sender_full = (re.search('Sender: .*[\r\n]', message).group(0))[8:]
-        except Exception, e:
+        sender_full = GetHeaderFromMessage(message, 'Sender')
+
+        if not sender_full:
           sender_full = '<unknown_user@unknown_domain>'
 
       try:
@@ -285,16 +279,12 @@ def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
       except Exception, e:
         sender = 'unknown_sender'
 
-      try:
-        subject = (re.search('Subject: .*[\r\n]', message).group(0))[9:].strip()
-      except Exception, e:
+      subject = GetHeaderFromMessage(message, 'Subject')
+
+      if not subject:
         subject = 'unknown_subject'
 
-      try:
-        message_id = (re.search('Message-ID: .*[\r\n]',
-                                message).group(0))[11:].strip()
-      except Exception, e:
-        message_id = ''
+      message_id = GetHeaderFromMessage(message, 'Message-ID')
 
       if message_id in processed_messages:
         message = 'Duplicate message with Message ID: ' + message_id
@@ -319,10 +309,10 @@ def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
           document = docs_connection.CreateResource(document_reference,
                                                     media=media,
                                                     collection=folder)
-          remaining_tries = -1
+          remaining_tries = -2
         except Exception, e:
           time.sleep(3)
-          logging.info('%s:     Retrying the following message:',
+          logging.info('%s:     Unable to create a doc for the following message:',
                        datetime.datetime.now())
           remaining_tries -= 1
           if remaining_tries == 0:
@@ -330,7 +320,7 @@ def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
                          datetime.datetime.now(), message_count,
                          total_in_label, title, label)
 
-      if remaining_tries == 0:
+      if remaining_tries == -1:
         continue
 
       if owner:
@@ -345,6 +335,94 @@ def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
                    datetime.datetime.now(), message_count, total_in_label,
                    title, label)
 
+  imap_connection.Close()
+
+
+class IMAPConnection(object):
+  def __init__(self, user, key, secret, imap_debug):
+    self.user = user
+    self.key = key
+    self.secret = secret
+    self.imap_debug = imap_debug
+    self.connection = None
+    self.connection_start = None
+    self.label = None
+
+  def Connect(self):
+    self.Close()
+      
+    logging.info('%s: Attempting IMAP login: %s', datetime.datetime.now(),
+                 self.user)
+
+    self.connection_start = datetime.datetime.now()
+    self.connection = imaplib.IMAP4_SSL('imap.gmail.com', 993)
+    self.connection.debug = self.imap_debug
+
+    consumer = OAuthEntity(self.key, self.secret)
+    xoauth_string = GenerateXOauthString(consumer, self.user, 'GET', 'imap')
+
+    try:
+      self.connection.authenticate('XOAUTH', lambda x: xoauth_string)
+    except Exception, e:
+      logging.error('%s: Error authenticating with OAUTH credentials provided '
+                    '[%s]', datetime.datetime.now(), str(e))
+
+    logging.info('%s: Logged in to IMAP', datetime.datetime.now())
+
+    if self.label:
+      self.connection.select(self.label)
+
+  def Close(self):
+    try:
+      self.connection.close()
+      self.connection.logout()
+      logging.info('%s: Logged out', datetime.datetime.now())
+    except Exception, e:
+      self.connection = None
+
+  def GetMessageLocatorsInLabel(self, label, query):
+    self.Connect()
+    try:
+      (result, unused_data) = self.connection.select(label)
+    except Exception, e:
+      logging.info('%s: Skipping label: %s', datetime.datetime.now(), label)
+      self.Close()
+      return []
+ 
+    logging.info('%s: Processing label: %s', datetime.datetime.now(), label)
+    self.label = label
+
+    unused_type, data = self.connection.uid('SEARCH', 'X-GM-RAW', query)
+
+    return data[0].split()
+
+  def GetMessage(self, message_locator):
+    if (datetime.datetime.now() - self.connection_start).seconds > 300:
+      logging.info('%s:     Refreshing IMAP connection',
+                   datetime.datetime.now())
+      self.Connect()
+
+    remaining_tries = 4
+    while remaining_tries >= 0:
+      try:
+        (result, message_info) = self.connection.fetch(message_locator,
+                                                       '(RFC822)')
+
+        remaining_tries = -1
+      except Exception, e:
+        if remaining_tries == 0:
+          return None
+        remaining_tries -= 1
+        time.sleep(3)
+        logging.info('%s:     Re-establishing IMAP connection',
+                     datetime.datetime.now())
+        self.Connect()
+
+    message = ''
+    if message_info:
+      (unused_data, message) = message_info[0]
+
+    return message
 
 
 def ImapSearch(user, consumer_key, consumer_secret, owner, query, imap_debug):
@@ -361,23 +439,8 @@ def ImapSearch(user, consumer_key, consumer_secret, owner, query, imap_debug):
 
   messages_found = 0
 
-  # Setup the IMAP connection and authenticate using OAUTH
-  logging.info('%s: Attempting IMAP login: %s', datetime.datetime.now(),
-               user)
-  imap_connection = imaplib.IMAP4_SSL('imap.gmail.com', 993)
-  imap_connection.debug = imap_debug
-
-  consumer = OAuthEntity(consumer_key, consumer_secret)
-  xoauth_string = GenerateXOauthString(consumer, user, 'GET', 'imap')
-
-  try:
-    imap_connection.authenticate('XOAUTH', lambda x: xoauth_string)
-  except Exception, e:
-    logging.error('Error authenticating with OAUTH credentials provided [%s]',
-                  str(e))
-
   # Setup the Drive connection and authenticate using OAUTH
-  logging.info('%s: Attempting login Drive', datetime.datetime.now())
+  logging.info('%s: Attempting Drive login', datetime.datetime.now())
   docs_connection = docs_client.DocsClient(source='docs_meta-v1')
   docs_connection.auth_token = gdata.gauth.TwoLeggedOAuthHmacToken(
       consumer_key, consumer_secret, user)
@@ -394,8 +457,14 @@ def ImapSearch(user, consumer_key, consumer_secret, owner, query, imap_debug):
   # Search the labels specified above for the specified message-ID
   #imap_connection.select(label)
 
+  imap_connection = IMAPConnection(user, consumer_key, consumer_secret,
+                                   imap_debug)
+  imap_connection.Connect()
+
   labels = []
-  (unused_type, label_list) = imap_connection.list()
+  (unused_type, label_list) = imap_connection.connection.list()
+  imap_connection.Close()
+
   for label_info in label_list:
     label_data = label_info.split('"')
     metadata = label_data[0]
@@ -410,8 +479,6 @@ def ImapSearch(user, consumer_key, consumer_secret, owner, query, imap_debug):
     ExportLabelToFolder(imap_connection, docs_connection, label, 
                         export_folder, query, owner)
     
-  imap_connection.close()
-  imap_connection.logout()
   logging.info('%s: Processing complete.', datetime.datetime.now())
 
 
