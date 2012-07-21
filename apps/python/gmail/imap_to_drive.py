@@ -2,8 +2,7 @@
 #
 # Copyright 2012 Google Inc. All Rights Reserved.
 
-"""Given a list of users and a Message ID or Gmail query, moves message(s) to
-   a specified label (defaulting to each user's Trash).
+"""Given a user and an optional query, exports message(s) to Drive
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,20 +26,16 @@ THE USE OR INABILITY TO USE, MODIFICATION OR DISTRIBUTION OF THIS CODE OR ITS
 DERIVATIVES.
 ###########################################################################
 
-Description: Given a specific message ID or a Gmail query, this script moves the messages (using IMAP) to a specified label or, by default, to each user's Trash for all
-users listed in the given user_list file. If the message is moved to the Trash,
-it can also be automatically purged.
-
 NOTE: IMAP must be turned on for the domain in order to move these messages.
 
 Usage:
-imap_email_mover.py [options]
+imap_to_drive.py [options]
 
 Options:
   -h, --help            show this help message and exit
-  --consumer_key=CONSUMER_KEY
+  --key=CONSUMER_KEY
                         The OAuth consumer key for the domain. Required.
-  --consumer_secret=CONSUMER_SECRET
+  --secret=CONSUMER_SECRET
                         The OAuth consumer secret for the domain. Required.
   --user=EMAIL_ADDRESS
                         The email address of the user to be exported. Required.
@@ -53,7 +48,7 @@ Options:
 """
 
 import base64
-import datetime
+from datetime import datetime
 import gdata.docs.client as docs_client
 import gdata.gauth
 import hashlib
@@ -68,11 +63,25 @@ import sys
 import time
 import urllib
 
+# The maximum seconds to sustain an open connection to each of the services
+# we rely on
+DOCS_CONNECTION_MAX_LENGTH = 306
+IMAP_CONNECTION_MAX_LENGTH = 300
+
+# The number of bytes of RFC822 message to stick in Google Drive
+EMAIL_TRUNCATE_BYTES = 256000
+
 
 class OAuthEntity(object):
   """Represents consumers and tokens in OAuth."""
 
   def __init__(self, key, secret):
+    """ Initializes an OAuthEntity
+
+    Arguments:
+      key: a string, the OAuth key
+      secret: a string, the OAuth secret
+    """
     self.key = key
     self.secret = secret
 
@@ -101,8 +110,8 @@ def UrlEscape(text):
   return urllib.quote(text, safe='~-._')
 
 
-def GenerateOauthSignature(base_string, consumer_secret, token_secret=''):
-  key = EscapeAndJoin([consumer_secret, token_secret])
+def GenerateOauthSignature(base_string, secret, token_secret=''):
+  key = EscapeAndJoin([secret, token_secret])
   return GenerateHmacSha1Signature(base_string, key)
 
 
@@ -192,33 +201,6 @@ def GenerateXOauthString(consumer, xoauth_requestor_id, method, protocol):
 
   return '%s %s %s' % (method, request_url, param_list)
 
-def CreateFolder(connection, name, owner=None, parent=None):
-  """ Creates and assigns ownership of a Drive Collection
-
-  Arguments:
-    connection: a gdata.docs.client.DocsClient, the connection to Google Drive
-    name: a string, the name of the collection
-    owner: the owner of the collection. (None means don't set an ACL)
-    parent: the parent collection. (None means use the document root)
-
-  Returns:
-    A gdata.docs.data.Resource, the resource locator for the created
-    collection
-  """
-  document = gdata.docs.data.Resource(type='folder',
-                                      title=name)
-
-  folder = connection.CreateResource(document, collection=parent)
-
-  if owner:
-    acl_entry = gdata.docs.data.AclEntry(
-        scope=gdata.acl.data.AclScope(value=owner, type='user'),
-        role=gdata.acl.data.AclRole(value='owner'),)
-
-    docs_connection.AddAclEntry(folder, acl_entry, send_notifications=False)
-
-  return folder
-
 def GetHeaderFromMessage(message, header):
   tag_length = len(header) + 2
 
@@ -229,9 +211,9 @@ def GetHeaderFromMessage(message, header):
 
   return value.strip()
 
+# Keeps track of all processed Message-IDs in order to detect duplication
 processed_messages = []
-def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
-                        query, owner):
+def ExportLabelToFolder(imap_connection, docs_connection, label, query, owner):
   """ Exports all messages under an IMAP label to a comparable Drive folder.
 
   Arguments:
@@ -239,8 +221,6 @@ def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
     docs_connection: a gdata.docs.client.DocsClient, the connection to Google
                      Drive
     label: a string, the IMAP label from which to export messages
-    parent_folder: a gdata.docs.data.Resource, the resource for the parent
-                   folder in Google Drive
     query: a Gmail-style query to restrict the export of messages. (None means
            to export all messages.)
     owner: a string, the email address of the person who should own the export
@@ -248,12 +228,13 @@ def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
   Returns:
     Nothing
   """
+  # Grab references to all of the messages in a label
   message_locators = imap_connection.GetMessageLocatorsInLabel(label, query)
 
   total_in_label = len(message_locators)
 
   if message_locators:
-    folder = CreateFolder(docs_connection, label, owner, parent_folder)
+    docs_connection.CreateFolder(label, owner, docs_connection.folder)
 
     message_count = 0
     for message_locator in message_locators:
@@ -262,7 +243,7 @@ def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
 
       if not message:
         logging.info('%s:   %s of %s: Could not retrieve message.',
-                     datetime.datetime.now(), message_count, total_in_label)
+                     datetime.now(), message_count, total_in_label)
         continue
 
       sender_full = GetHeaderFromMessage(message, 'From')
@@ -289,85 +270,56 @@ def ExportLabelToFolder(imap_connection, docs_connection, label, parent_folder,
       if message_id in processed_messages:
         message = 'Duplicate message with Message ID: ' + message_id
         logging.info('%s:     The following message is a duplicate:',
-                     datetime.datetime.now())
+                     datetime.now())
       else:
         if message_id:
           processed_messages.append(message_id)
 
       title = sender + ": " + subject
 
-      remaining_tries = 4
-      while remaining_tries >= 0:
-        try:
-          document_reference = gdata.docs.data.Resource(type='document',
-                                                        title=title)
-
-          media = gdata.data.MediaSource(file_handle=StringIO.StringIO(message),
-                                         content_type='text/plain',
-                                         content_length=len(message))
-
-          document = docs_connection.CreateResource(document_reference,
-                                                    media=media,
-                                                    collection=folder)
-          remaining_tries = -2
-        except Exception, e:
-          time.sleep(3)
-          logging.info('%s:     Unable to create a doc for the following message:',
-                       datetime.datetime.now())
-          remaining_tries -= 1
-          if remaining_tries == 0:
-            logging.info('%s:     %s of %s: Could not add %s to collection %s',
-                         datetime.datetime.now(), message_count,
-                         total_in_label, title, label)
-
-      if remaining_tries == -1:
-        continue
-
-      if owner:
-        acl_entry = gdata.docs.data.AclEntry(
-            scope=gdata.acl.data.AclScope(value=owner, type='user'),
-            role=gdata.acl.data.AclRole(value='owner'),)
-
-        docs_connection.AddAclEntry(document, acl_entry,
-                                    send_notifications=False)
+      docs_connection.CreateDoc(title, message, owner)
 
       logging.info('%s:   %s of %s: Added "%s" to collection %s',
-                   datetime.datetime.now(), message_count, total_in_label,
-                   title, label)
+                   datetime.now(), message_count, total_in_label,
+                   title, docs_connection.folder.name)
 
-  imap_connection.Close()
+    docs_connection.FolderComplete()
 
 
-class IMAPConnection(object):
-  def __init__(self, user, key, secret, imap_debug):
+class XOAuthInfo(object):
+  def __init__(self, user, key, secret):
     self.user = user
     self.key = key
     self.secret = secret
+
+
+class IMAPConnection(object):
+  def __init__(self, xoauth, imap_debug):
+    self.xoauth = xoauth
     self.imap_debug = imap_debug
     self.connection = None
-    self.connection_start = None
+    self.connection_start = datetime(1, 1, 1)
     self.label = None
 
-  def Connect(self):
-    self.Close()
-      
-    logging.info('%s: Attempting IMAP login: %s', datetime.datetime.now(),
-                 self.user)
+  def _Connect(self):
+    logging.info('%s: Attempting IMAP login: %s', datetime.now(),
+                 self.xoauth.user)
 
-    self.connection_start = datetime.datetime.now()
+    self.connection_start = datetime.now()
     self.connection = imaplib.IMAP4_SSL('imap.gmail.com', 993)
     self.connection.debug = self.imap_debug
 
-    consumer = OAuthEntity(self.key, self.secret)
-    xoauth_string = GenerateXOauthString(consumer, self.user, 'GET', 'imap')
+    consumer = OAuthEntity(self.xoauth.key, self.xoauth.secret)
+    xoauth_string = GenerateXOauthString(consumer, self.xoauth.user, 'GET',
+                                         'imap')
 
     try:
       self.connection.authenticate('XOAUTH', lambda x: xoauth_string)
     except Exception, e:
       logging.error('%s: Error authenticating with OAUTH credentials provided '
-                    '[%s]', datetime.datetime.now(), str(e))
+                    '[%s]', datetime.now(), str(e))
 
-    logging.info('%s: Logged in to IMAP', datetime.datetime.now())
+    logging.info('%s: Logged in to IMAP', datetime.now())
 
     if self.label:
       self.connection.select(self.label)
@@ -376,31 +328,46 @@ class IMAPConnection(object):
     try:
       self.connection.close()
       self.connection.logout()
-      logging.info('%s: Logged out', datetime.datetime.now())
+      logging.info('%s: Logged out', datetime.now())
     except Exception, e:
       self.connection = None
 
+  def _CheckRefresh(self):
+    if ((datetime.now() - self.connection_start).seconds >
+        IMAP_CONNECTION_MAX_LENGTH):
+      logging.info('%s:     Refreshing IMAP connection',
+                   datetime.now())
+      self.Close()
+      self._Connect()
+
   def GetMessageLocatorsInLabel(self, label, query):
-    self.Connect()
+    self._CheckRefresh()
+
     try:
       (result, unused_data) = self.connection.select(label)
     except Exception, e:
-      logging.info('%s: Skipping label: %s', datetime.datetime.now(), label)
-      self.Close()
+      logging.info('%s: Skipping label: %s', datetime.now(), label)
       return []
  
-    logging.info('%s: Processing label: %s', datetime.datetime.now(), label)
+    logging.info('%s: Processing label: %s', datetime.now(), label)
     self.label = label
 
     unused_type, data = self.connection.uid('SEARCH', 'X-GM-RAW', query)
 
     return data[0].split()
 
+  def List(self):
+    self._CheckRefresh()
+
+    try:
+      (unused_data, list) = self.connection.list()
+    except Exception, e:
+      list = []
+
+    return list
+    
   def GetMessage(self, message_locator):
-    if (datetime.datetime.now() - self.connection_start).seconds > 300:
-      logging.info('%s:     Refreshing IMAP connection',
-                   datetime.datetime.now())
-      self.Connect()
+    self._CheckRefresh()
 
     remaining_tries = 4
     while remaining_tries >= 0:
@@ -411,27 +378,136 @@ class IMAPConnection(object):
         remaining_tries = -1
       except Exception, e:
         if remaining_tries == 0:
-          return None
+          return ''
         remaining_tries -= 1
         time.sleep(3)
         logging.info('%s:     Re-establishing IMAP connection',
-                     datetime.datetime.now())
-        self.Connect()
+                     datetime.now())
+        self.Close()
+        self._Connect()
 
     message = ''
     if message_info:
-      (unused_data, message) = message_info[0]
+      try:
+        (unused_data, message) = message_info[0]
+      except Exception, e:
+        return ''
 
     return message
 
 
-def ImapSearch(user, consumer_key, consumer_secret, owner, query, imap_debug):
+class Folder(object):
+  def __init__(self, connection, name, owner=None, parent=None):
+    self.name = name
+    self.owner = owner
+    self.parent = parent
+
+    parent_folder = None
+    if parent:
+      parent_folder = self.parent.folder
+
+    document = gdata.docs.data.Resource(type='folder', title=self.name)
+    self.folder = connection.CreateResource(document,
+                             collection=parent_folder)
+
+    if self.owner:
+      acl_entry = gdata.docs.data.AclEntry(
+          scope=gdata.acl.data.AclScope(value=self.owner, type='user'),
+          role=gdata.acl.data.AclRole(value='owner'),)
+
+      connection.AddAclEntry(self.folder, acl_entry, send_notifications=False)
+
+    self.uri = self.folder.GetSelfLink().href
+
+  def Reconnect(self, connection):
+    self.folder = connection.GetResourceBySelfLink(self.uri)
+
+    if self.parent:
+      self.parent.Reconnect(connection)
+  
+
+class DocsConnection(object):
+  def __init__(self, xoauth):
+    self.xoauth = xoauth
+    self.connection = None
+    self.connection_start = datetime(1, 1, 1)
+
+    self.folder = None
+
+  def _Connect(self):
+    logging.info('%s: Attempting Drive login', datetime.now())
+    self.connection = docs_client.DocsClient(source='docs_meta-v1')
+    self.connection_start = datetime.now()
+    self.connection.auth_token = gdata.gauth.TwoLeggedOAuthHmacToken(
+        self.xoauth.key, self.xoauth.secret, self.xoauth.user)
+
+  def Close(self):
+    del(self.connection)
+    self.connection = None
+
+  def _CheckRefresh(self):
+    if ((datetime.now() - self.connection_start).seconds >
+        DOCS_CONNECTION_MAX_LENGTH):
+      logging.info('%s:     Refreshing Drive connection',
+                   datetime.now())
+      self.Close()
+      self._Connect()
+
+      if self.folder:
+        self.folder.Reconnect(self.connection)
+
+  def CreateFolder(self, name, owner=None, parent=None):
+    """ Creates and assigns ownership of a Drive Collection
+
+    Arguments:
+      name: a string, the name of the collection
+      owner: the owner of the collection. (None means don't set an ACL)
+      parent: the parent collection. (None means use the document root)
+    """
+    self._CheckRefresh()
+
+    self.folder = Folder(self.connection, name, owner, parent)
+
+  def FolderComplete(self):
+    self.folder = self.folder.parent
+
+  def CreateDoc(self, name, content, owner=None):
+    self._CheckRefresh()
+
+    remaining_tries = 4
+    while remaining_tries >= 0:
+      document_reference = gdata.docs.data.Resource(type='document', title=name)
+      content = content[:EMAIL_TRUNCATE_BYTES]
+      media = gdata.data.MediaSource(file_handle=StringIO.StringIO(content),
+                                     content_type='text/plain',
+                                     content_length=len(content))
+
+      try:
+        document = self.connection.CreateResource(document_reference,
+            media=media, collection=self.folder.folder)
+
+        remaining_tries = -2
+      except Exception, e:
+        logging.info('%s:     Re-establishing Docs connection',
+                     datetime.now())
+        self.Close()
+        self._Connect()
+
+        remaining_tries -= 1
+
+    if remaining_tries == -2 and owner:
+      acl_entry = gdata.docs.data.AclEntry(
+          scope=gdata.acl.data.AclScope(value=owner, type='user'),
+          role=gdata.acl.data.AclRole(value='owner'),)
+
+      self.connection.AddAclEntry(document, acl_entry, send_notifications=False)
+
+def ImapSearch(user, xoauth, owner, query, imap_debug):
   """Searches the user inbox for specific messages. Uploads them to Drive.
 
   Args:
     user: The Google Mail username that we are searching
-    consumer_key: a string, the OAuth key for access to Gmail and Drive
-    consumer_secret: a string, the OAuth secret for the above key
+    xoauth: An XOAuthInfo object, the credentials to establish XOAuth 
     owner: The owner of the uploaded Drive files
     query: A query to find messages
     imap_debug: IMAP debug level
@@ -440,30 +516,15 @@ def ImapSearch(user, consumer_key, consumer_secret, owner, query, imap_debug):
   messages_found = 0
 
   # Setup the Drive connection and authenticate using OAUTH
-  logging.info('%s: Attempting Drive login', datetime.datetime.now())
-  docs_connection = docs_client.DocsClient(source='docs_meta-v1')
-  docs_connection.auth_token = gdata.gauth.TwoLeggedOAuthHmacToken(
-      consumer_key, consumer_secret, user)
+  docs_connection = DocsConnection(xoauth)
 
   export_folder_name = user + ' exported ' + GetTimeStamp()
-  export_folder = CreateFolder(docs_connection, export_folder_name, owner)
+  docs_connection.CreateFolder(export_folder_name, owner)
 
-  # By default, we want to search for the message in the All Mail folder since
-  # all messages live there. IMAP does not allow us to search for a message in
-  # the entire mailbox but luckily Gmail has the "All Mail" folder.
-  # We also search for the message in the Spam label since spam messages do not
-  # show up in All Mail.
-
-  # Search the labels specified above for the specified message-ID
-  #imap_connection.select(label)
-
-  imap_connection = IMAPConnection(user, consumer_key, consumer_secret,
-                                   imap_debug)
-  imap_connection.Connect()
+  imap_connection = IMAPConnection(xoauth, imap_debug)
 
   labels = []
-  (unused_type, label_list) = imap_connection.connection.list()
-  imap_connection.Close()
+  label_list = imap_connection.List()
 
   for label_info in label_list:
     label_data = label_info.split('"')
@@ -476,10 +537,9 @@ def ImapSearch(user, consumer_key, consumer_secret, owner, query, imap_debug):
     labels.append(label)
 
   for label in labels:
-    ExportLabelToFolder(imap_connection, docs_connection, label, 
-                        export_folder, query, owner)
+    ExportLabelToFolder(imap_connection, docs_connection, label, query, owner)
     
-  logging.info('%s: Processing complete.', datetime.datetime.now())
+  logging.info('%s: Processing complete.', datetime.now())
 
 
 def GetTimeStamp():
@@ -488,8 +548,7 @@ def GetTimeStamp():
   Returns:
     A formatted string representing the current date and time.
   """
-
-  now = datetime.datetime.now()
+  now = datetime.now()
   return now.strftime('%Y.%m.%d@%H:%M:%S')
 
 
@@ -501,9 +560,9 @@ def ParseInputs():
   """
 
   parser = OptionParser()
-  parser.add_option('--consumer_key', dest='consumer_key',
+  parser.add_option('--key', dest='key',
                     help='The OAuth consumer key for the domain.')
-  parser.add_option('--consumer_secret', dest='consumer_secret',
+  parser.add_option('--secret', dest='secret',
                     help='The OAuth consumer secret for the domain.')
   parser.add_option('--user', dest='user',
                     help='The Email address of the user to export.')
@@ -525,12 +584,12 @@ def ParseInputs():
 
   invalid_arguments = False
 
-  if options.consumer_key is None:
-    print '--consumer_key is required'
+  if options.key is None:
+    print '--key is required'
     invalid_arguments = True
 
-  if options.consumer_secret is None:
-    print '--consumer_secret is required'
+  if options.secret is None:
+    print '--secret is required'
     invalid_arguments = True
 
   if options.user is None:
@@ -555,8 +614,10 @@ def main():
   console.setLevel(logging.INFO)
   logging.getLogger('').addHandler(console)
 
-  ImapSearch(options.user, options.consumer_key, options.consumer_secret,
-             options.owner, options.query, options.imap_debug_level)
+  xoauth = XOAuthInfo(options.user, options.key, options.secret)
+
+  ImapSearch(options.user, xoauth, options.owner, options.query,
+             options.imap_debug_level)
 
   print 'Log file is: %s' % log_filename
 
