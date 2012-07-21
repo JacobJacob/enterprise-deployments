@@ -32,7 +32,7 @@ Usage:
 imap_to_drive.py [options]
 
 Options:
-  -h, --help            show this help message and exit
+  -h, --help            Show this help message and exit.
   --key=CONSUMER_KEY
                         The OAuth consumer key for the domain. Required.
   --secret=CONSUMER_SECRET
@@ -45,6 +45,9 @@ Options:
   --query=QUERY
                         A Gmail query to identify messages to be exported.
                         Optional. By default, all messages will be exported.
+  --truncate_label=LABEL
+                        A Gmail label to add to any messages that were
+                        truncated when pushed to Drive.
 """
 
 import base64
@@ -277,7 +280,8 @@ def ExportLabelToFolder(imap_connection, docs_connection, label, query, owner):
 
       title = sender + ": " + subject
 
-      docs_connection.CreateDoc(title, message, owner)
+      if docs_connection.CreateDoc(title, message, owner):
+        imap_connection.AddTruncationLabel(message_locator)
 
       logging.info('%s:   %s of %s: Added "%s" to collection %s',
                    datetime.now(), message_count, total_in_label,
@@ -294,8 +298,9 @@ class XOAuthInfo(object):
 
 
 class IMAPConnection(object):
-  def __init__(self, xoauth, imap_debug):
+  def __init__(self, xoauth, truncate_label=None, imap_debug=0):
     self.xoauth = xoauth
+    self.truncate_label = truncate_label
     self.imap_debug = imap_debug
     self.connection = None
     self.connection_start = datetime(1, 1, 1)
@@ -339,6 +344,14 @@ class IMAPConnection(object):
                    datetime.now())
       self.Close()
       self._Connect()
+
+  def AddTruncationLabel(self, message_locator):
+    if self.truncate_label:
+      logging.info('%s:     Label "%s" added.', datetime.now(),
+                   self.truncate_label)
+      self.connection.create(self.truncate_label)
+      self.connection.uid('COPY', message_locator, self.truncate_label)
+      self.connection.expunge()
 
   def GetMessageLocatorsInLabel(self, label, query):
     self._CheckRefresh()
@@ -474,10 +487,15 @@ class DocsConnection(object):
   def CreateDoc(self, name, content, owner=None):
     self._CheckRefresh()
 
+    truncated = False
     remaining_tries = 4
     while remaining_tries >= 0:
       document_reference = gdata.docs.data.Resource(type='document', title=name)
-      content = content[:EMAIL_TRUNCATE_BYTES]
+      if len(content) > EMAIL_TRUNCATE_BYTES:
+        logging.info('%s:     The following message was truncated: %s bytes',
+                     datetime.now(), len(content))
+        content = content[:EMAIL_TRUNCATE_BYTES]
+        truncated = True
       media = gdata.data.MediaSource(file_handle=StringIO.StringIO(content),
                                      content_type='text/plain',
                                      content_length=len(content))
@@ -502,7 +520,9 @@ class DocsConnection(object):
 
       self.connection.AddAclEntry(document, acl_entry, send_notifications=False)
 
-def ImapSearch(user, xoauth, owner, query, imap_debug):
+    return truncated
+
+def ImapSearch(user, xoauth, owner, query, truncate_label, imap_debug):
   """Searches the user inbox for specific messages. Uploads them to Drive.
 
   Args:
@@ -521,7 +541,7 @@ def ImapSearch(user, xoauth, owner, query, imap_debug):
   export_folder_name = user + ' exported ' + GetTimeStamp()
   docs_connection.CreateFolder(export_folder_name, owner)
 
-  imap_connection = IMAPConnection(xoauth, imap_debug)
+  imap_connection = IMAPConnection(xoauth, truncate_label, imap_debug)
 
   labels = []
   label_list = imap_connection.List()
@@ -570,6 +590,8 @@ def ParseInputs():
                     help='The new owner of the archive in Drive.')
   parser.add_option('--query', dest='query', default='',
                     help='A Gmail query to identify messages.')
+  parser.add_option('--truncate_label', dest='trunacte_label', default=None,
+                    help='A Gmail label to add to truncated messages.')
 
   parser.add_option('--imap_debug_level', dest='imap_debug_level', default=0,
                     help="""[OPTIONAL] Sets the imap debug level.
@@ -617,7 +639,7 @@ def main():
   xoauth = XOAuthInfo(options.user, options.key, options.secret)
 
   ImapSearch(options.user, xoauth, options.owner, options.query,
-             options.imap_debug_level)
+             options.trunacte_label, options.imap_debug_level)
 
   print 'Log file is: %s' % log_filename
 
