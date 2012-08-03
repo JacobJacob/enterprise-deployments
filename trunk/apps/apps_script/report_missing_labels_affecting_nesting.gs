@@ -63,7 +63,7 @@ function _labelManager(mode) {
   
   // Report the deduplicated list of labels to create
   for (var element in labels_to_create) {
-    Logger.log('I would create ' + element);
+    Logger.log('Label [' + element + '] is missing');
   }
   
   // This creates an array of all the possible labels
