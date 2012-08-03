@@ -1,13 +1,31 @@
+////////////////////////////////////////////////////////////////////////////////
+// This is a reference implementation of a script that scans a user's labels
+// looking for missing labels that are affecting nesting
+// The script prints the labels it thinks should be created 
+// to the log via Logger.log.
+//
+// For instance, if a user has the labels:
+//   - A
+//   - A/B/C
+// this won't nest properly because A/B is missing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+// Username we are going to check labels for
 USERNAME="mdauphinee@mdauphinee.info";
 
+// This function just looks for missing top level labels
 function fixTopLevelMissingLabels() {
   _labelManager("top_only");
 }
 
+// This function looks for missing labels at any level
 function fixAllMissingLabels() {
   _labelManager("all");
 }
 
+// Do not call this function directly.
+// Rather use fixTopLevelMissingLabels or fixAllMissingLabels
 function _labelManager(mode) {
   
   //var USERNAME = Browser.inputBox("Enter account name (full email address)");
