@@ -4,10 +4,19 @@
 // The script prints the labels it thinks should be created 
 // to the log via Logger.log.
 //
-// For instance, if a user has the labels:
+// Example #1: If a user has the labels:
 //   - A
 //   - A/B/C
-// this won't nest properly because A/B is missing
+// this won't nest properly because A/B is missing.
+// The function fixAllMissingLabels would catch this and the following example.
+//
+// Example #2: If a user has the labels:
+//   - A/B/C
+//   - A/B/D
+//   - A/B
+// this also won't nest properly because the label A is missing.
+// The function fixTopLevelMissingLabels would catch this, but not the 
+// previous example.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
