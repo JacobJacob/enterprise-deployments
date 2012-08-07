@@ -25,6 +25,22 @@ GOOGLE HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES, ARISING OUT OF
 THE USE OR INABILITY TO USE, MODIFICATION OR DISTRIBUTION OF THIS CODE OR ITS
 DERIVATIVES.
 ###########################################################################
+
+Example #1: To check one user:
+./imap_duplicate_check.py -u administrator \
+                          -p mypass \
+                          -d mdauphinee.info \
+                          -k mdauphinee.info \
+                          -s "fffoiuwejhkjkjhsdafxq" \
+                          --specific_user=mdauphinee@mdauphinee.info
+
+Example #2: To all users in the domain, 10 threads
+./imap_duplicate_check.py -u administrator \
+                          -p mypass \
+                          -d mdauphinee.info \
+                          -k mdauphinee.info \
+                          -s "2IxnnYqrkMKgqCMCTGxq" \
+                          -t 10
 """
 
 
