@@ -79,8 +79,6 @@ class Worker(threading.Thread):
     self.imap_debug_level = imap_debug_level
     self.list_response_pattern = re.compile(
         r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
-    #TODO(mdauphinee): Implement more appropriate timezone logic versus
-    #                  using localtime of machine here
 
   def run(self):
     """Main worker that manages the jobs and applies changes for each user."""
