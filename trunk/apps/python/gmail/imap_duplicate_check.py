@@ -41,6 +41,32 @@ Example #2: To all users in the domain, 10 threads
                           -k mdauphinee.info \
                           -s "2IxnnYqrkMKgqCMCTGxq" \
                           -t 10
+
+Example #3: For a specific user, run in read only mode and report
+            what actions *would be* taken on duplication found in
+            a user's account
+./imap_duplicate_check.py -u administrator \
+                          -p mypass \
+                          -d mdauphinee.info \
+                          -k mdauphinee.info \
+                          -s "2IxnnYqrkMKgqCMCTGxq" \
+                          --specific_user=mdauphinee@mdauphinee.info \
+                          -l Duplicates
+
+Example #4: For a specific user, leave one copy of duplicates
+            unmodified, but apply a label to subsequent copies
+            of the message
+            NOTE: This only applies the label to the second message
+                  found and all subsequent messages.  It does *not*
+                  apply the label to the first message found.
+./imap_duplicate_check.py -u administrator \
+                          -p mypass \
+                          -d mdauphinee.info \
+                          -k mdauphinee.info \
+                          -s "2IxnnYqrkMKgqCMCTGxq" \
+                          --specific_user=mdauphinee@mdauphinee.info \
+                          -l Duplicates \
+                          --modify_messages
 """
 
 
@@ -78,8 +104,7 @@ class Worker(threading.Thread):
 
   def __init__(self, consumer_key, consumer_secret, admin_user, admin_pass,
                domain, work_queue, failure_queue, max_retry, max_failures,
-               delete_flag, imap_debug_level):
-    """Creates a CalendarService and provides Oauth auth details to it."""
+               modify_messages, label_to_add, imap_debug_level):
 
     threading.Thread.__init__(self)
     self.consumer_key = consumer_key
@@ -91,7 +116,8 @@ class Worker(threading.Thread):
     self.failure_queue = failure_queue
     self.max_retry = max_retry
     self.max_failures = max_failures
-    self.delete_flag = delete_flag
+    self.modify_messages = modify_messages
+    self.label_to_add = label_to_add
     self.imap_debug_level = imap_debug_level
     self.list_response_pattern = re.compile(
         r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
@@ -156,6 +182,12 @@ class Worker(threading.Thread):
       # Select All Mail to search the entire mailbox.
       imap_conn.select(all_mail_label)
 
+      # Create the label to add to all duplicate messages
+      if self.modify_messages:
+        logging.info("Creating the label [%s] in the account of [%s]",
+                     self.label_to_add, task.GetUserName())
+        imap_conn.create(self.label_to_add)
+
       # Search mailbox
       status, data = imap_conn.uid(
           'SEARCH',
@@ -176,7 +208,19 @@ class Worker(threading.Thread):
 
         if message_id in message_hash.keys():
           message_hash[message_id] += 1
+
+          # Add the desired label to all duplicates found
+          # NOTE: The first message in the set will *not* get the label
+          if self.label_to_add:
+            if self.modify_messages:
+              logging.info("Adding label [%s] to message [%s] for user [%s]",
+                           self.label_to_add, message_id, task.GetUserName())
+              imap_conn.uid('COPY', num, self.label_to_add)
+            else:
+              logging.info("Would have applied label [%s] to message [%s]",
+                           self.label_to_add, message_id)
         else:
+          # First messageID found will not be labeled
           message_hash[message_id] = 1
 
       for msgid in message_hash.keys():
@@ -184,39 +228,25 @@ class Worker(threading.Thread):
           logging.warning('DUPLICATE FOUND for [%s]: [%s] [%s] times',
                           task.GetUserName(), msgid, message_hash[msgid])
 
-#         if self.delete_flag:
-#           logging.info('[%s][%s] Deleting message [%s]',
-#                        self.name,
-#                        task.GetUserName(),
-#                        num)
-#
-#           # Move to Trash
-#           imap_conn.uid('COPY', num, trash_label)
-#         else:
-#           logging.info('[%s][%s] Would have deleted message [%s]',
-#                        self.name,
-#                        task.GetUserName(),
-#                        num)
-#
-#       if self.delete_flag:
-#         logging.info('[%s][%s] Purging records in Trash',
-#                      self.name,
-#                      task.GetUserName())
-#         # Purge records in Trash older than 60 days
-#         imap_conn.select(trash_label)
-#
-#         status, data = imap_conn.uid(
-#             'SEARCH',
-#             'X-GM-RAW',
-#             self._GetTrashSearchQuery(trash_label,
-#                                       self.sixty_days_ago_string))
-#
-#         for num in data[0].split():
-#           logging.info('[%s][%s] Applying deleted flag to %s',
-#                        self.name,
-#                        task.GetUserName(),
-#                        num)
-#           imap_conn.uid('STORE', num, '+FLAGS', '\\Deleted')
+       #if self.delete_flag:
+       #  logging.info('[%s][%s] Purging records in Trash',
+       #              self.name,
+       #               task.GetUserName())
+       #  # Purge records in Trash older than 60 days
+       # imap_conn.select(trash_label)
+
+       #  status, data = imap_conn.uid(
+       #      'SEARCH',
+       #      'X-GM-RAW',
+       #      self._GetTrashSearchQuery(trash_label,
+       #                                self.sixty_days_ago_string))
+       #
+       #  for num in data[0].split():
+       #    logging.info('[%s][%s] Applying deleted flag to %s',
+       #                 self.name,
+       #                 task.GetUserName(),
+       #                 num)
+       #    imap_conn.uid('STORE', num, '+FLAGS', '\\Deleted')
 
       imap_mngr.Logout()
     except Exception, err:
@@ -239,6 +269,9 @@ def ParseInputs():
                     help='The consumer key')
   parser.add_option('-s', dest='consumer_secret',
                     help='The consumer secret')
+  parser.add_option('-l', dest='label_to_add',
+                    help="""[OPTIONAL] A label to apply to all but one of the
+                            duplicated MessageIDs detected""")
   parser.add_option('--specific_user', dest='specific_user',
                     help="""If a specific_user is given, auditing will only be
                             applied to this user, versus all users in the
@@ -263,7 +296,8 @@ def ParseInputs():
                           3, if there are 6 user accounts for which we tried 4
                           times to update their ACL and failed, we will
                           terminate the process.""")
-  parser.add_option('--delete', action='store_true', dest='delete',
+  parser.add_option('--modify_messages', action='store_true',
+                    default=False, dest='modify_messages',
                     help="Unless present, script will run in read only mode.")
 
   (options, args) = parser.parse_args()
@@ -470,7 +504,8 @@ def main():
                failure_queue,
                options.max_retry,
                options.max_failures,
-               options.delete,
+               options.modify_messages,
+               options.label_to_add,
                options.imap_debug_level)
     t.setDaemon(True)
     t.start()
