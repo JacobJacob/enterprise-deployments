@@ -2,7 +2,7 @@
 #
 # Copyright 2012 Google Inc. All Rights Reserved.
 
-"""Reports instances of duplicate SMTP message IDs in a user's inbox
+"""Reports instances of duplicate SMTP message IDs in a user's inbox.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -71,7 +71,7 @@ Example #4: For a specific user, leave one copy of duplicates
 
 
 import base64
-import datetime
+from datetime import datetime
 import hashlib
 import hmac
 import imaplib
@@ -86,6 +86,10 @@ import time
 import urllib
 import gdata.apps.service
 
+# The maximum seconds to sustain an open IMAP connection
+# before reconnecting
+IMAP_CONNECTION_MAX_LENGTH = 300
+
 
 class Instruction(object):
 
@@ -93,7 +97,7 @@ class Instruction(object):
     self.username = username
 
   def __str__(self):
-    return ('Instruction{UserName:[%s]}' % (self.username))
+    return 'Instruction{UserName:[%s]}' % self.username
 
   def GetUserName(self):
     return self.username
@@ -119,8 +123,6 @@ class Worker(threading.Thread):
     self.modify_messages = modify_messages
     self.label_to_add = label_to_add
     self.imap_debug_level = imap_debug_level
-    self.list_response_pattern = re.compile(
-        r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
 
   def run(self):
     """Main worker that manages the jobs and applies changes for each user."""
@@ -156,55 +158,44 @@ class Worker(threading.Thread):
       # signals to queue job is done
       self.work_queue.task_done()
 
-  def _GetLocalizedLabelName(self, response, find_label):
-    localized_name = ''
-    for i in response[1]:
-      status, delim, label = self.list_response_pattern.match(i).groups()
-      if status.find(find_label) > 0:
-        localized_name = label
-    return localized_name
-
   def _ProcessUser(self, task):
 
     try:
-      imap_mngr = ImapConnectionManager(task.GetUserName(),
+      imap_conn = ImapConnectionManager(task.GetUserName(),
+                                        self.label_to_add,
                                         self.consumer_key,
                                         self.consumer_secret,
                                         self.imap_debug_level)
-      imap_conn = imap_mngr.Login()
-
-      status, data = imap_conn.xatom('XLIST', '"" "*"')
-      response = imap_conn.response('XLIST')
-
-      trash_label = self._GetLocalizedLabelName(response, 'Trash')
-      all_mail_label = self._GetLocalizedLabelName(response, 'AllMail')
-
-      # Select All Mail to search the entire mailbox.
-      imap_conn.select(all_mail_label)
+      imap_conn.Login()
 
       # Create the label to add to all duplicate messages
       if self.modify_messages:
-        logging.info("Creating the label [%s] in the account of [%s]",
+        logging.info('Creating the label [%s] in the account of [%s]',
                      self.label_to_add, task.GetUserName())
-        imap_conn.create(self.label_to_add)
+        imap_conn.CreateLabel()
 
-      # Search mailbox
-      status, data = imap_conn.uid(
-          'SEARCH',
-          'X-GM-RAW',
-          '')
+      # Get a list of the UIDs for the messages
+      message_locators = imap_conn.GetMessageLocators()
+      logging.info('Found [%d] messages for user [%s]',
+                   len(message_locators), task.GetUserName())
 
+      # Initialize a dict for counting the number of times
+      # we see a Message ID
       message_hash = {}
 
+      # Initialize a counter to print after every x
+      # as a status meter
       message_count = 0
-      for num in data[0].split():
+
+      for message_locator in message_locators:
         message_count += 1
-        status, data = imap_conn.uid('FETCH', num,
-                                     #'(X-GM-LABELS INTERNALDATE FLAGS BODY.PEEK[HEADER.FIELDS (DATE)] BODY.PEEK[HEADER.FIELDS (SUBJECT)])')
-                                     '(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])')
-        message_id = data[0][1]
-        message_id = message_id.strip(' \t\n\r')
-        print message_id
+
+        # Print a heartbeat to let the user know it is running
+        if (message_count % 50) == 0:
+          logging.info('Retreived [%d] message IDs for [%s]',
+                       message_count, task.GetUserName())
+
+        message_id = imap_conn.GetMessageId(message_locator)
 
         if message_id in message_hash.keys():
           message_hash[message_id] += 1
@@ -213,11 +204,11 @@ class Worker(threading.Thread):
           # NOTE: The first message in the set will *not* get the label
           if self.label_to_add:
             if self.modify_messages:
-              logging.info("Adding label [%s] to message [%s] for user [%s]",
+              logging.info('Adding label [%s] to message [%s] for user [%s]',
                            self.label_to_add, message_id, task.GetUserName())
-              imap_conn.uid('COPY', num, self.label_to_add)
+              imap_conn.AddLabel(message_locator)
             else:
-              logging.info("Would have applied label [%s] to message [%s]",
+              logging.info('Would have applied label [%s] to message [%s]',
                            self.label_to_add, message_id)
         else:
           # First messageID found will not be labeled
@@ -228,27 +219,7 @@ class Worker(threading.Thread):
           logging.warning('DUPLICATE FOUND for [%s]: [%s] [%s] times',
                           task.GetUserName(), msgid, message_hash[msgid])
 
-       #if self.delete_flag:
-       #  logging.info('[%s][%s] Purging records in Trash',
-       #              self.name,
-       #               task.GetUserName())
-       #  # Purge records in Trash older than 60 days
-       # imap_conn.select(trash_label)
-
-       #  status, data = imap_conn.uid(
-       #      'SEARCH',
-       #      'X-GM-RAW',
-       #      self._GetTrashSearchQuery(trash_label,
-       #                                self.sixty_days_ago_string))
-       #
-       #  for num in data[0].split():
-       #    logging.info('[%s][%s] Applying deleted flag to %s',
-       #                 self.name,
-       #                 task.GetUserName(),
-       #                 num)
-       #    imap_conn.uid('STORE', num, '+FLAGS', '\\Deleted')
-
-      imap_mngr.Logout()
+      imap_conn.Logout()
     except Exception, err:
       logging.error('\t[%s] Error processing user [%s]: %s',
                     self.name, task.GetUserName(), str(err))
@@ -298,7 +269,7 @@ def ParseInputs():
                           terminate the process.""")
   parser.add_option('--modify_messages', action='store_true',
                     default=False, dest='modify_messages',
-                    help="Unless present, script will run in read only mode.")
+                    help='Unless present, script will run in read only mode.')
 
   (options, args) = parser.parse_args()
   if args:
@@ -342,11 +313,17 @@ def GetProvisionedUsers(admin_user, admin_pass, domain):
 
 class ImapConnectionManager(object):
 
-  def __init__(self, user, consumer_key, consumer_secret, debug_level):
+  def __init__(self, user, label_to_add, consumer_key,
+               consumer_secret, debug_level):
     self.consumer_key = consumer_key
     self.consumer_secret = consumer_secret
     self.user = user
     self.debug_level = debug_level
+    self.connection = None
+    self.connection_start = datetime(1, 1, 1)
+    self.label_to_add = label_to_add
+    self.list_response_pattern = re.compile(
+        r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)')
 
   def Login(self):
     xoauth_string = self._GenerateXOauthString(self.consumer_key,
@@ -357,21 +334,83 @@ class ImapConnectionManager(object):
 
     ## Setup the IMAP connection and authenticate using OAUTH
     logging.info('[%s] Attempting to login to mailbox', self.user)
-    self.imap_connection = imaplib.IMAP4_SSL('imap.gmail.com', 993)
-    self.imap_connection.debug = self.debug_level
+    self.connection_start = datetime.now()
+    self.connection = imaplib.IMAP4_SSL('imap.gmail.com', 993)
+    self.connection.debug = self.debug_level
     try:
-      self.imap_connection.authenticate('XOAUTH', lambda x: xoauth_string)
+      self.connection.authenticate('XOAUTH', lambda x: xoauth_string)
       logging.info('[%s] IMAP connection successfully created', self.user)
     except Exception, e:
       logging.error('Error authenticating with OAUTH credentials provided [%s]',
                     str(e))
 
-    return self.imap_connection
+    logging.info('%s: Logged in to IMAP', datetime.now())
+    self.connection.select(self._GetLocalizedLabelName('AllMail'))
+    logging.info('%s: AllMail label selected', datetime.now())
+
+  def _GetLocalizedLabelName(self, find_label):
+    status, data = self.connection.xatom('XLIST', '"" "*"')
+    response = self.connection.response('XLIST')
+    localized_name = ''
+    for i in response[1]:
+      status, delim, label = self.list_response_pattern.match(i).groups()
+      if status.find(find_label) > 0:
+        localized_name = label
+    logging.info("Localized All Mail label is [%s]", localized_name)
+    return localized_name
+
+  def _CheckRefresh(self):
+    if ((datetime.now() - self.connection_start).seconds >
+        IMAP_CONNECTION_MAX_LENGTH):
+      logging.info('%s: Refreshing IMAP connection',
+                   datetime.now())
+      self.Logout()
+      self.Login()
+
+  def AddLabel(self, message_locator):
+    self.connection.uid('COPY', message_locator, self.label_to_add)
+    #self.connection.expunge()
+
+  def CreateLabel(self):
+    self.connection.create(self.label_to_add)
+
+  def GetMessageLocators(self):
+    self._CheckRefresh()
+    logging.info('%s: Retrieving UIDs', datetime.now())
+    unused_type, data = self.connection.uid('SEARCH', 'X-GM-RAW', '')
+    return data[0].split()
+
+  def GetMessageId(self, message_locator):
+    self._CheckRefresh()
+
+    remaining_tries = 4
+    while remaining_tries >= 0:
+      try:
+        (status, data) = self.connection.uid(
+            'FETCH', message_locator, '(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])')
+
+        remaining_tries = -1
+      except Exception, e:
+        if remaining_tries == 0:
+          return ''
+        remaining_tries -= 1
+        time.sleep(3)
+        logging.info('%s:     Re-establishing IMAP connection',
+                     datetime.now())
+        self.Close()
+        self._Connect()
+
+    message_id = data[0][1]
+    message_id = message_id.strip(' \t\n\r')
+    return message_id
 
   def Logout(self):
-    self.imap_connection.close()
-    self.imap_connection.logout()
-    logging.info('[%s] IMAP connection successfully closed', self.user)
+    try:
+      self.connection.close()
+      self.connection.logout()
+      logging.info('[%s] IMAP connection successfully closed', self.user)
+    except Exception, e:
+      self.connection = None
 
   def _EscapeAndJoin(self, elems):
     return '&'.join([self._UrlEscape(x) for x in elems])
@@ -477,7 +516,7 @@ def main():
 
   # Set up logging
   log_filename = ('imap_duplicate_check_%s.log' %
-                  (datetime.datetime.now().strftime('%Y%m%d%H%M%S')))
+                  (datetime.now().strftime('%Y%m%d%H%M%S')))
   logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
                       filename=log_filename,
                       level=logging.DEBUG)
