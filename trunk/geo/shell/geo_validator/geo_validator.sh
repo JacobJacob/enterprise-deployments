@@ -76,7 +76,9 @@ function locate_ebm_files {
 
 #######################################
 # Make sure we have one Google Earth Builder
-# file per directory
+# file per directory. Compare a listing of
+# images in our data dir against the EBMS
+# looking for extra files.
 # Globals:
 #   LOG_FILE
 #   SCHEMA_FILE
@@ -102,36 +104,77 @@ function validate_data_dir {
   local f=0
   local gebs=''
   local dir_prefix=''
+  local dir_images=''
+  local ebm_images=''
+  local number_of_ebm_files=''
 
   # Look into each directory we found an .ebm file in and try to find another,
   # hoping we don't.
-  echo "Process: Checking for > 1  Google Earth Builder file in a directory" \
+  echo "Process: Checking for more than one Google Earth Builder file in a directory" \
         | tee -a $LOG_FILE
   for gebs in $geb_dirnames; do
     number_of_ebm_files="$(find $gebs -regex '.*\(ebm\)$' \
                             | wc -l)"
-    echo -n "  Verifying: $gebs/... "
+    echo -n "  Verifying: $gebs/... " \
+      | tee -a $LOG_FILE
     if [[ $number_of_ebm_files -gt 1 ]]; then
-      echo "Error"
+      echo "Error" \
+        | tee -a $LOG_FILE
       let "f++"
       echo "Error: $gebs/ has more than 1 Google Earth Builder file" \
         | tee -a $LOG_FILE
     else
-      echo "OK"
+      echo "OK" \
+        | tee -a $LOG_FILE
     fi
   done
 
   # Check the success/failure of actions above, we can't tolerate failures.
   if [[ "$f" -eq 0 ]]; then
     echo "  Success: Found one Google Earth Builder file in each directory" \
-          | tee -a $LOG_FILE
+      | tee -a $LOG_FILE
   else
     echo "  Failure: More than one Google Earth Builder file in a directory" \
-          | tee -a $LOG_FILE
-    echo "    Refer to $LOG_FILE for details... exiting"
+      | tee -a $LOG_FILE
+    echo "    Refer to $LOG_FILE for details... exiting" \
+      | tee -a $LOG_FILE
     exit 1
   fi
 
+  # Obtain a listing of files in $DATA_DIR and compare that to what we find in
+  # the EBMS.
+  echo "Process: Checking for extraneous files in $DATA_DIR" \
+        | tee -a $LOG_FILE
+  # Use find to locate our regular files inside of $DATA_DIR
+  dir_images=$(find $DATA_DIR -type f \
+                | xargs -n1 basename)
+  # Loop through our gebs and pull out all sidecar and filename references
+  for gebs in $geb_file; do
+    ebm_images+="$(cat $gebs | awk -F'</?sidecar>' 'NF>1{print $2}')"
+    ebm_images+="$(cat $gebs | awk -F'</?filename>' 'NF>1{print $2}')"
+  done
+  # Diff our results looking for images in the directory listing not referenced
+  # in our ebm files.
+  diff -q \
+    <(echo $dir_images | tr ' ' '\n' | sort) \
+    <(echo $ebm_images | tr ' ' '\n' | sort) \
+    &> /dev/null
+  # Check the output of diff, if they differ (1) then log more detailed data.
+  if [[ $? -gt 0 ]]; then
+    echo "  Failure: We found files in $DATA_DIR not referenced." \
+      | tee -a $LOG_FILE
+    echo "    Refer to $LOG_FILE for details... exiting" \
+      | tee -a $LOG_FILE
+    echo "    Files found in $DATA_DIR not referenced:" \
+      >> $LOG_FILE
+    diff \
+      --changed-group-format="%<" \
+      --unchanged-group-format="" \
+      <(echo $dir_images | tr ' ' '\n' | sort) \
+      <(echo $ebm_images | tr ' ' '\n' | sort) \
+      >> $LOG_FILE
+    exit 1
+  fi
 }
 #######################################
 # Test the geb file against the schema
@@ -153,58 +196,61 @@ function validate_ebm_against_schema {
   local geb_files="$@"
 
   # Initialize: f is for failures, s is for successes. Reusing gebs and
-  # dir_prefix (after a re-initalization) from above.
+  # dir_prefix (after a re-initalization) from above, images is to store the XML
+  # elements for filename/sidecar.
   local f=0
   local s=0
   local dir_prefix=''
-
+  local images=''
   # Loop through all found Google Earth Builder files and check them against the
   # schema. Log the ones that fail and then check if any failures occured and
-  # exit.
+  # exit. We also check them for duplicate filename/sidecar elements.
   echo "Process: Checking the Google Earth Builder files against the schema" \
         | tee -a $LOG_FILE
   for gebs in $geb_files; do
     local dir_prefix="$(dirname $gebs)"
-    echo -n "  Verifying: $gebs... "
+    echo -n "  Verifying: $gebs... " \
+      | tee -a $LOG_FILE
+    # Check the geb against the schema.
     xmllint --noout --schema $SCHEMA_FILE $gebs &> /dev/null
+    # Check return code to determine success.
     if [[ "$?" -eq 0 ]]; then
-      echo "OK"
+      echo "OK" \
+        | tee -a $LOG_FILE
       let "s++"
     else
-      echo "Error"
+      echo "Error" \
+        | tee -a $LOG_FILE
       let "f++"
-      xmllint --noout --schema $SCHEMA_FILE $gebs \
+      xmllint --noout --schema $SCHEMA_FILE $gebs >> $LOG_FILE
+    fi
+    # Check for duplicate filenames in the given geb
+    echo -n "  Checking for duplicates: $gebs... " \
+      | tee -a $LOG_FILE
+    images="$(cat $gebs | awk -F'</?sidecar>' 'NF>1{print $2}')"
+    images+="$(cat $gebs | awk -F'</?filename>' 'NF>1{print $2}')"
+    if [[ -n $(echo $images | tr ' ' '\n' | sort | uniq -d) ]]; then
+      echo "Error" \
+        | tee -a $LOG_FILE
+      let "f++"
+      echo "Repeated sidecar/filename(s):" >> $LOG_FILE
+      echo $images | tr ' ' '\n' \
+        | sort \
+        | uniq -cd >> $LOG_FILE
+    else
+      echo "OK" \
         | tee -a $LOG_FILE
     fi
   done
 
   # Check the success/failure of actions above, we can't tolerate failures.
   if [[ "$f" -gt 0 ]]; then
-    echo "  Failure: Unable to validate some Google Earth Builder Files"
-    echo "    Refer to $LOG_FILE for details... exiting"
+    echo "  Failure: Unable to validate some Google Earth Builder Files" \
+      | tee -a $LOG_FILE
+    echo "    Refer to $LOG_FILE for details... exiting" \
+      | tee -a $LOG_FILE
     exit 1
   fi
-
-  # Check to make sure we don't have duplicate filename or sidecar elements
-  for gebs in $geb_files; do
-    local dir_prefix="$(dirname $gebs)"
-    local images="$(cat $gebs | awk -F'</?sidecar>' 'NF>1{print $2}')"
-    images+="$(cat $gebs | awk -F'</?filename>' 'NF>1{print $2}')"
-  done
-  # Check if the value is null, if not error out.
-  if [[ -n $(echo $images | tr ' ' '\n' | sort -d) ]]; then
-    echo "  Failure: We have duplicate sidecar/filename element values" \
-          | tee -a $LOG_FILE
-    echo "    Refer to $LOG_FILE for details... exiting"
-    echo "    Repeated sidecar/filename(s): " &> $LOG_FILE
-    echo $images \
-      | tr ' ' '\n' \
-      | sort \
-      | uniq -cd &> $LOG_FILE
-    exit 1
-  fi
-  echo "  Success: Verified all Google Earth Builder Files ($s)" \
-        | tee -a $LOG_FILE
 }
 
 #######################################
@@ -246,13 +292,16 @@ function check_valid_images {
     # A loop to perform the file exists and validates with gdalinfo.
     for i in $images; do
       # Prepend the directory of the Google Earth Builder file we're working on.
-      echo -n "  Verifying: $dir_prefix/$i...  "
+      echo -n "  Verifying: $dir_prefix/$i...  " \
+        | tee -a $LOG_FILE
       gdalinfo $dir_prefix/$i &> /dev/null
       if [[ $? -eq 0 ]]; then
-        echo "OK"
+        echo "OK" \
+          | tee -a $LOG_FILE
         let "s++"
       else
-        echo "Error"
+        echo "Error" \
+          | tee -a $LOG_FILE
         let "f++"
         gdalinfo $dir_prefix/$i \
           | tee -a $LOG_FILE
@@ -265,8 +314,10 @@ function check_valid_images {
     echo "  Success: Verified all images ($s)" \
           | tee -a $LOG_FILE
   else
-    echo "  Failure: Unable to verify some images ($f)"
-    echo "    Refer to $LOG_FILE for details... exiting"
+    echo "  Failure: Unable to verify some images ($f)" \
+      | tee -a $LOG_FILE
+    echo "    Refer to $LOG_FILE for details... exiting" \
+      | tee -a $LOG_FILE
     exit 1
   fi
 }
@@ -307,14 +358,17 @@ function checksum_images {
     images+="$(cat $gebs | awk -F'</?filename>' 'NF>1{print $2}')"
     for i in $images; do
       # Prepend the directory of the Google Earth Builder file we are working on.
-      echo -n "  Creating checksum for: $dir_prefix/$i...  "
+      echo -n "  Creating checksum for: $dir_prefix/$i...  " \
+        | tee -a $LOG_FILE
       sha1sum -b "$dir_prefix/$i" \
         | tee -a $CHECKSUM_FILE
       if [[ "${PIPESTATUS[0]}" -eq 0 ]]; then
-        echo "OK"
+        echo "OK" \
+          | tee -a $LOG_FILE
         let "s++"
       else
-        echo  "Error"
+        echo  "Error" \
+          | tee -a $LOG_FILE
         let "f++"
         sha1sum -b "$dir_prefix/$i" \
           | tee -a $LOG_FILE
@@ -405,7 +459,7 @@ main () {
   done
 
   # Make sure we can write to the directory.
-  echo "Process: Trying to create our logfile: $PWD/$LOG_FILE"
+  echo "Process: Trying to create our logfile: $LOG_FILE"
   touch $LOG_FILE &> /dev/null
   if [[ "$?" -gt 0 ]]; then
     echo "  Error: Unable to create our logfile"
@@ -442,10 +496,10 @@ main () {
         | tee -a $LOG_FILE
   echo "SUCCESS: We've verified everything." \
         | tee -a $LOG_FILE
-  echo "Process logfile: $PWD$LOG_FILE"
+  echo "Process logfile: $LOG_FILE"
   # Only if we were told to create a checksum file.
   if [[ $CHECKSUM == 'TRUE' ]]; then
-    echo "Checksum file: $PWD$CHECKSUM_FILE" \
+    echo "Checksum file: $CHECKSUM_FILE" \
           | tee -a $LOG_FILE
   fi
   echo "====================================" \
