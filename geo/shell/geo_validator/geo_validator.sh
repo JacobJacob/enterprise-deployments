@@ -147,6 +147,7 @@ function validate_data_dir {
         | tee -a $LOG_FILE
   # Use find to locate our regular files inside of $DATA_DIR
   dir_images=$(find $DATA_DIR -type f \
+                | egrep -v ".ebm" \
                 | xargs -n1 basename)
   # Loop through our gebs and pull out all sidecar and filename references
   for geb in $geb_files; do
@@ -155,7 +156,7 @@ function validate_data_dir {
   done
   # Diff our results looking for images in the directory listing not referenced
   # in our ebm files.
-  diff -q \
+  diff -iq \
     <(echo $dir_images | tr ' ' '\n' | sort) \
     <(echo $ebm_images | tr ' ' '\n' | sort) \
     &> /dev/null
@@ -167,7 +168,7 @@ function validate_data_dir {
       | tee -a $LOG_FILE
     echo "    Files found in $DATA_DIR not referenced:" \
       | tee -a $LOG_FILE
-    diff \
+    diff -i \
       --changed-group-format="%<" \
       --unchanged-group-format="" \
       <(echo $dir_images | tr ' ' '\n' | sort) \
