@@ -151,8 +151,8 @@ function validate_data_dir {
                 | xargs -n1 basename)
   # Loop through our gebs and pull out all sidecar and filename references
   for geb in $geb_files; do
-    ebm_images+="$(cat $geb | awk -F'</?sidecar>' 'NF>1{print $2}')"
-    ebm_images+="$(cat $geb | awk -F'</?filename>' 'NF>1{print $2}')"
+    ebm_images+="$(cat $geb | awk -F'</?sidecar>' 'NF>1{print $2}') "
+    ebm_images+="$(cat $geb | awk -F'</?filename>' 'NF>1{print $2}') "
   done
   # Diff our results looking for images in the directory listing not referenced
   # in our ebm files.
