@@ -148,6 +148,7 @@ function validate_data_dir {
   # Use find to locate our regular files inside of $DATA_DIR
   dir_images=$(find $DATA_DIR -type f \
                 | egrep -v ".ebm|.log" \
+                | egrep -v ".log" \
                 | xargs -n1 basename)
   # Loop through our gebs and pull out all sidecar and filename references
   for geb in $geb_files; do
@@ -288,8 +289,8 @@ function check_valid_images {
         | tee -a $LOG_FILE
   for gebs in $geb_files; do
     local dir_prefix="$(dirname $gebs)"
-    # we only intend to check the file and not the sidecar 
-    local images+="$(cat $gebs | awk -F'</?filename>' 'NF>1{print $2}') "
+    # We only intend to check the file and not the sidecar.
+    local images="$(cat $gebs | awk -F'</?filename>' 'NF>1{print $2}') "
     # A loop to perform the file exists and validates with gdalinfo.
     for i in $images; do
       # Prepend the directory of the Google Earth Builder file we're working on.
@@ -355,8 +356,8 @@ function checksum_images {
         | tee -a $LOG_FILE
   for gebs in $geb_files; do
     local dir_prefix="$(dirname $gebs)"
-    local images="$(cat $gebs | awk -F'</?sidecar>' 'NF>1{print $2}')"
-    images+="$(cat $gebs | awk -F'</?filename>' 'NF>1{print $2}')"
+    local images="$(cat $gebs | awk -F'</?sidecar>' 'NF>1{print $2}') "
+    images+="$(cat $gebs | awk -F'</?filename>' 'NF>1{print $2}') "
     for i in $images; do
       # Prepend the directory of the Google Earth Builder file we are working on.
       echo -n "  Creating checksum for: $dir_prefix/$i...  " \
