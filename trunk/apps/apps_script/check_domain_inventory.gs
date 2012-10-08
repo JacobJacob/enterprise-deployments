@@ -31,7 +31,7 @@
 //   - Make sure Column B is empty (we write to it)
 //
 // NOTE: The check to see if the domain is Team Edition is only looking
-//       for the string "To join, <domain> create an account here."
+//       for the string "Google Apps for Teams is shutting down"
 //       when trying to access the Control Panel for the domain.
 //
 //       Also, domains which are unverified Apps domains will appear in this
@@ -71,7 +71,7 @@ function checkDomainInventory() {
   }
 
   function _findDomainType(domain) {
-    var re_match_positive_team = new RegExp("To join,.*create an account here");
+    var re_match_positive_team = new RegExp("Google Apps for Teams is shutting down");
     var re_match_negative = new RegExp(
        "you've reached a login page for a domain that isn't using Google Apps");
     var response = UrlFetchApp.fetch("https://www.google.com/a/cpanel/" +
