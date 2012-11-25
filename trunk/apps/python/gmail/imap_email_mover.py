@@ -299,9 +299,7 @@ def ImapSearch(user, xoauth_string, message_id, query, move, destination_label,
       if purge.lower() == 'yes':
         imap_connection.uid('COPY', num, '[Gmail]/' + _LOCALIZED_TRASH)
         imap_connection.expunge()
-        imap_connection.uid('STORE', num, '+FLAGS', '\\Deleted')
-        imap_connection.expunge()
-        logging.info("[%s]   Purged", user)
+        logging.info("[%s]   To be purged", user)
       else:
         if move.lower() == 'yes':
           unused_type, label_data = imap_connection.uid('FETCH', num,
@@ -319,6 +317,24 @@ def ImapSearch(user, xoauth_string, message_id, query, move, destination_label,
 
     logging.info('[%s] Found %s messages(s) in %s', user, messages_found, label)
 
+  if purge.lower() == 'yes':
+    label = '[Gmail]/' + _LOCALIZED_TRASH
+    imap_connection.select(label)
+    messages_found = 0
+
+    if message_id is not None:
+      search_query = '(HEADER Message-ID "%s")' % message_id
+      unused_type, data = imap_connection.uid('SEARCH', None, search_query)
+    else:
+      unused_type, data = imap_connection.uid('SEARCH', 'X-GM-RAW', query)
+
+    for num in data[0].split():
+      messages_found += 1
+      imap_connection.uid('STORE', num, '+FLAGS', '\\Deleted')
+      imap_connection.expunge()
+      logging.info('[%s] Message has been purged from Gmail', user)
+    logging.info('[%s] Total message(s) purged: %s',
+                 user, messages_found)
   # Close the connection for the user
 
   imap_connection.close()
