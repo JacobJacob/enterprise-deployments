@@ -279,7 +279,7 @@ def ImapSearch(user, xoauth_string, message_id, query, move, destination_label,
 
     if message_id is not None:
       search_query = '(HEADER Message-ID "%s")' % message_id
-      unused_type, data = imap_connection.search(None, search_query)
+      unused_type, data = imap_connection.uid('SEARCH', None, search_query)
     else:
       unused_type, data = imap_connection.uid('SEARCH', 'X-GM-RAW', query)
 
@@ -294,7 +294,7 @@ def ImapSearch(user, xoauth_string, message_id, query, move, destination_label,
       if purge.lower() == 'yes':
         imap_connection.uid('COPY', num, '[Gmail]/Trash')
         imap_connection.expunge()
-        imap_connection.store(num, '+FLAGS', '\\Deleted')
+        imap_connection.uid('STORE', num, '+FLAGS', '\\Deleted')
         imap_connection.expunge()
         logging.info("[%s]   Purged", user)
       else:
