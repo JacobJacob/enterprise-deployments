@@ -398,7 +398,7 @@ class ImapConnectionManager(object):
         logging.info('%s:     Re-establishing IMAP connection',
                      datetime.now())
         self.Logout()
-        self._Connect()
+        self.Login()
 
     message_id = data[0][1]
     message_id = message_id.strip(' \t\n\r')
