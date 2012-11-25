@@ -107,6 +107,11 @@ import time
 import urllib
 
 
+# Modify this variable to the appropriate 'Trash' label. In the U.S., it
+# should be 'Trash'. In the U.K. it should be 'Bin'.
+_LOCALIZED_TRASH = 'Trash'
+
+
 class OAuthEntity(object):
   """Represents consumers and tokens in OAuth."""
 
@@ -292,7 +297,7 @@ def ImapSearch(user, xoauth_string, message_id, query, move, destination_label,
                    total_in_label)
 
       if purge.lower() == 'yes':
-        imap_connection.uid('COPY', num, '[Gmail]/Trash')
+        imap_connection.uid('COPY', num, '[Gmail]/' + _LOCALIZED_TRASH)
         imap_connection.expunge()
         imap_connection.uid('STORE', num, '+FLAGS', '\\Deleted')
         imap_connection.expunge()
@@ -395,7 +400,7 @@ def ParseInputs():
   parser.add_option('--move', dest='move', default='no',
                     help="""Whether to move the message (yes) or
                             just add the new label (no). Default is 'no'.""")
-  parser.add_option('--label', dest='label', default='[Gmail]/Trash',
+  parser.add_option('--label', dest='label', default='[Gmail]/' + _LOCALIZED_TRASH,
                     help='The label to move messages to.')
   parser.add_option('--purge', dest='purge', default='no',
                     help="""Whether to permanently purge the message (yes) or
@@ -444,16 +449,16 @@ def ParseInputs():
     print '--move must be "yes" or "no"'
     invalid_arguments = True
 
-  if options.move == 'yes' and options.label == '[Gmail]/Trash':
-    print '--move must have a --label specified that isn\'t "Trash"'
+  if options.move == 'yes' and options.label == '[Gmail]/' + _LOCALIZED_TRASH:
+    print '--move must have a --label specified that isn\'t "' + _LOCALIZED_TRASH + '"'
     invalid_arguments = True
 
   if options.purge != 'yes' and options.purge != 'no':
     print '--purge must be "yes" or "no"'
     invalid_arguments = True
 
-  if options.label != '[Gmail]/Trash' and options.purge != 'no':
-    print '--purge can only be used if moving messages to the Trash'
+  if options.label != '[Gmail]/' + _LOCALIZED_TRASH and options.purge != 'no':
+    print '--purge can only be used if moving messages to the ' + _LOCALIZED_TRASH
     invalid_arguments = True
 
   if invalid_arguments:
