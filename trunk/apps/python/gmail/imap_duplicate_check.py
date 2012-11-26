@@ -197,9 +197,11 @@ class Worker(threading.Thread):
 
         message_id = imap_conn.GetMessageId(message_locator)
 
-        if message_id in message_hash.keys():
+        # Using a try/except here for optimization
+        # per the instructions here: http://wiki.python.org/moin/PythonSpeed/PerformanceTips
+        # under "Initializing Dictionary Elements"
+        try:
           message_hash[message_id] += 1
-
           # Add the desired label to all duplicates found
           # NOTE: The first message in the set will *not* get the label
           if self.label_to_add:
@@ -210,7 +212,7 @@ class Worker(threading.Thread):
             else:
               logging.info('Would have applied label [%s] to message [%s]',
                            self.label_to_add, message_id)
-        else:
+        except KeyError:
           # First messageID found will not be labeled
           message_hash[message_id] = 1
 
