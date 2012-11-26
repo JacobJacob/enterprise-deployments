@@ -58,6 +58,10 @@
       <xs:element ref="asset" minOccurs="1" maxOccurs="unbounded"/>
     </xs:sequence>
   </xs:complexType>
+  <xs:unique name="testUniqueFilename">
+    <xs:selector xpath="asset" />
+    <xs:field xpath="filename" />
+  </xs:unique>
 </xs:element>
 
 </xs:schema>
