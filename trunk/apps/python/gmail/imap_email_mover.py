@@ -437,15 +437,15 @@ def ParseInputs():
   search_terms = 0
 
   if options.consumer_key is None:
-    print '--consumer_key is required'
+    print('--consumer_key is required')
     invalid_arguments = True
 
   if options.consumer_secret is None:
-    print '--consumer_secret is required'
+    print('--consumer_secret is required')
     invalid_arguments = True
 
   if options.user_list is None:
-    print '--user_list is required'
+    print('--user_list is required')
     invalid_arguments = True
 
   if options.message_id is not None:
@@ -455,26 +455,28 @@ def ParseInputs():
     search_terms += 1
 
   if search_terms == 0:
-    print '--message_id or --query is required'
+    print('--message_id or --query is required')
     invalid_arguments = True
   elif search_terms > 1:
-    print 'use of --message_id and --query are mutually exclusive'
+    print('use of --message_id and --query are mutually exclusive')
     invalid_arguments = True
 
   if options.move != 'yes' and options.move != 'no':
-    print '--move must be "yes" or "no"'
+    print('--move must be "yes" or "no"')
     invalid_arguments = True
 
   if options.move == 'yes' and options.label == '[Gmail]/' + _LOCALIZED_TRASH:
-    print '--move must have a --label specified that isn\'t "' + _LOCALIZED_TRASH + '"'
+    print('--move must have a --label specified that isn\'t "%s"' %
+          _LOCALIZED_TRASH)
     invalid_arguments = True
 
   if options.purge != 'yes' and options.purge != 'no':
-    print '--purge must be "yes" or "no"'
+    print('--purge must be "yes" or "no"')
     invalid_arguments = True
 
   if options.label != '[Gmail]/' + _LOCALIZED_TRASH and options.purge != 'no':
-    print '--purge can only be used if moving messages to the ' + _LOCALIZED_TRASH
+    print('--purge can only be used if moving messages to the %s' %
+          _LOCALIZED_TRASH)
     invalid_arguments = True
 
   if invalid_arguments:
@@ -508,7 +510,7 @@ def main():
                options.move, options.label, options.purge,
                options.imap_debug_level)
 
-  print 'Log file is: %s' % log_filename
+  print('Log file is: %s' % log_filename)
 
 
 if __name__ == '__main__':
