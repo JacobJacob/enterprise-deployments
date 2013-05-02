@@ -259,9 +259,9 @@ def ImapSearch(user, xoauth_string, message_id, query, move, destination_label,
   imap_connection.debug = imap_debug
   try:
     imap_connection.authenticate('XOAUTH', lambda x: xoauth_string)
-  except Exception, e:
-    logging.error('Error authenticating with OAUTH credentials provided [%s]',
-                  str(e))
+  except imaplib.IMAP4.error:
+    logging.error('Error authenticating with OAUTH credentials provideds')
+    sys.exit()
 
   # Attempt to create the destination label. If it already exists, nothing
   # will happen.
