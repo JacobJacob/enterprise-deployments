@@ -350,7 +350,7 @@ def main():
   # Run the IMAP search
   ImapSearch(xoauth_string, options.query, options.restrict_domains_file,
              options.completed_label, options.remove_from_subject,
-             options.threads, options.imap_debug_level)
+             int(options.threads), options.imap_debug_level)
 
   print 'Log file is: %s' % log_filename
 
