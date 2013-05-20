@@ -293,8 +293,8 @@ def ParseInputs():
                     help='A label to add to all reinjected messages')
   parser.add_option('--remove_from_subject', dest='remove_from_subject',
                     help='Text to remove from the subject header')
-  parser.add_option('--threads', dest='threads',
-                    help='The number of IMAP connections to open '
+  parser.add_option('--threads', dest='threads', default=1
+                    help='The number of IMAP connections to open. Default = 1'
                     'simultaneously', type='int')
   parser.add_option('--imap_debug_level', dest='imap_debug_level', default=0,
                     help='[OPTIONAL] Sets the imap debug level\n'
