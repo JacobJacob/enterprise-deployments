@@ -385,8 +385,8 @@ class IMAPConnection(object):
     remaining_tries = 4
     while remaining_tries >= 0:
       try:
-        (result, message_info) = self.connection.fetch(message_locator,
-                                                       '(RFC822)')
+        (result, message_info) = self.connection.uid('FETCH', message_locator,
+                                                     '(RFC822)')
 
         remaining_tries = -1
       except Exception, e:
