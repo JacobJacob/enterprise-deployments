@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-# Copyright 2011 Google Inc. All Rights Reserved.
+# Copyright 2013 Google Inc. All Rights Reserved.
 
 """Re-orders the phone numbers in profiles.
 
