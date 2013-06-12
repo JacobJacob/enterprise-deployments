@@ -30,10 +30,14 @@
     -h, --help            show this help message and exit
     -d DOMAIN             Domain
     -u ADMIN_USER         Admin user
-    -p ADMIN_PASS         Admin password
-    --profile_to_change=PROFILE_TO_CHANGE
-                          OPTIONAL:a single username (without domain) to search.
-                          Otherwise this will search all profiles.
+    -p ADMIN_PASS_FILE    OPTIONAL: A file containing only the admin password
+                          otherwise there will be a prompt for the admin
+                          password.
+                          Make sure this file is properly secured!
+    -l LIST_OF_PROFILES_TO_CHANGE
+                          OPTIONAL: A comma-separated list of usernames
+                          (without domain) to search otherwise this will
+                          search all profiles.
     -a                    Unless this flag is present, this runs
                           in a Dry Run mode making no changes
 
@@ -53,8 +57,10 @@ PHONE_ORDER = [
 
 import datetime
 import logging
-from optparse import OptionParser
 import sys
+
+from getpass import getpass
+from optparse import OptionParser
 
 import gdata.apps.service as apps_service
 import gdata.contacts
@@ -67,10 +73,11 @@ def ParseInputs():
                     help="""Domain""")
   parser.add_option('-u', dest='admin_user',
                     help="""Admin user""")
-  parser.add_option('-p', dest='admin_pass',
-                    help="""Admin password""")
-  parser.add_option('--profile_to_change', dest='profile_to_change',
-                    help="""OPTIONAL:Single username (without domain) to search.
+  parser.add_option('-p', dest='admin_pass_file',
+                    help="""Admin password file""")
+  parser.add_option('-l', dest='profiles_to_change',
+                    help="""OPTIONAL:A comma-separated list of usernames
+                            (without domain) to search.
                             Otherwise this will search all profiles.""")
   parser.add_option('-a', dest='apply', action='store_true', default=False,
                     help="""Unless this flag is present, this runs
@@ -91,9 +98,6 @@ def ParseInputs():
     invalid_args = True
   if options.admin_user is None:
     print '-u (adminuser@domain.com) is required'
-    invalid_args = True
-  if options.admin_pass is None:
-    print '-p (admin pass) is required'
     invalid_args = True
 
   if invalid_args:
@@ -137,17 +141,25 @@ def main():
   if not options.apply:
     logging.info('RUNNING IN DRY RUN MODE, NO CHANGES WILL BE MADE')
 
+  if options.admin_pass_file:
+    password_file = open(options.admin_pass_file)
+    password = password_file.readline().rstrip()
+    password_file.close()
+  else:
+    password = getpass('Enter the password for user %s: '
+                               % options.admin_user)
+
   con_conn = GetContactsConnection(options.admin_user,
-                                   options.admin_pass,
+                                   password,
                                    options.domain)
   prov_conn = GetProvConnection(options.admin_user,
-                                options.admin_pass,
+                                password,
                                 options.domain)
 
   # Define User List
   users = []
-  if options.profile_to_change:
-    users.append(options.profile_to_change)
+  if options.profiles_to_change:
+    users = options.profiles_to_change.split(',')
   else:
     user_feed = prov_conn.RetrieveAllUsers()
     for user_entry in user_feed.entry:
