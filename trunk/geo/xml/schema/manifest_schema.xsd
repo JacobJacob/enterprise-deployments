@@ -27,6 +27,7 @@
     <xs:restriction base="xs:string">
       <xs:enumeration value="image"/>
       <xs:enumeration value="terrain"/>
+      <xs:enumeration value="vector"/>
     </xs:restriction>
   </xs:simpleType>
 </xs:element>
