@@ -74,8 +74,7 @@ function checkDomainInventory() {
     var re_match_positive_team = new RegExp("Google Apps for Teams is shutting down");
     var re_match_negative = new RegExp(
        "you've reached a login page for a domain that isn't using Google Apps");
-    var response = UrlFetchApp.fetch("https://mail.google.com/a/cpanel/" +
-                                     domain);
+    var response = UrlFetchApp.fetch("https://mail.google.com/a/" + domain);
     if (re_match_positive_team.test(response.getContentText())) {
       return "team";
     } else if (re_match_negative.test(response.getContentText())) {
