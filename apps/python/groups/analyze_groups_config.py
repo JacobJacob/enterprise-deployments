@@ -69,6 +69,7 @@ import sys
 
 from apiclient.discovery import build
 import gdata.apps.groups.client
+import gdata.apps.groups.service
 import gflags
 import httplib2
 from oauth2client.client import flow_from_clientsecrets
@@ -77,6 +78,12 @@ from oauth2client.tools import run
 
 FLAGS = gflags.FLAGS
 
+gflags.DEFINE_string('admin_user', None,
+                     'Email address of admin account.',
+                     short_name='u')
+gflags.DEFINE_string('admin_pass', None,
+                     'Password of admin account.',
+                     short_name='p')
 gflags.DEFINE_string('domain', None,
                      """Primary domain of Apps account to scan.
                         Will prompt at the command line if not provided.""",
@@ -88,6 +95,19 @@ gflags.DEFINE_string('scopes',
                      ('https://apps-apis.google.com/a/feeds/groups/ '
                       'https://www.googleapis.com/auth/apps.groups.settings'),
                      'A comma separated list of the scopes being requested.')
+
+
+gflags.MarkFlagAsRequired('admin_user')
+gflags.MarkFlagAsRequired('admin_pass')
+
+
+def GetGroupsServiceConnection(admin_user, admin_pass, domain):
+  groups_client = gdata.apps.groups.service.GroupsService(email=admin_user,
+                                                          domain=domain,
+                                                          password=admin_pass,
+                                                          source='GroupsClient "Unit" Tests')
+  groups_client.ProgrammaticLogin()
+  return groups_client
 
 
 def GetCredentials(oauth2_conf_file, scopes):
@@ -226,6 +246,9 @@ def main(argv):
   prov_client = GetProvisioningClient(credentials, FLAGS.domain,
                                       FLAGS.scopes)
 
+  # Get Groups Service connection
+  groups_service = GetGroupsServiceConnection(FLAGS.admin_user, FLAGS.admin_pass, FLAGS.domain)
+
   # Iterate over all groups
   for entry in prov_client.RetrieveAllGroups().entry:
     logging.info('Checking %s', entry.group_id)
@@ -252,6 +275,12 @@ def main(argv):
     members = prov_client.RetrieveAllMembers(entry.group_id)
     for member in members.entry:
       if member.member_type == 'Group':
+
+
+        # Check if nested Group is an Owner.  Discouraged practice.
+        if (groups_service.IsOwner(member.member_id, entry.group_id)):
+          logging.warning('Member %s of Group %s is a Group which is marked as '
+                          'an Owner', member.member_id, entry.group_id)
 
         cgs = GetGroupSettings(http, member.member_id)
 
