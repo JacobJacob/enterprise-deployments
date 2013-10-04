@@ -10,8 +10,6 @@
 
      <div id="debug_div" style="font-size:9pt; padding:5px; color: red;"></div>
 
-    alert("The time is now: " + hh + ":" + mm + ":" + ss);
-
      <script type="text/javascript">
       var dd = new Date();
       var hh = dd.getHours();
@@ -25,6 +23,14 @@
      <li><a href="http://www.google.com" target="_blank">Open a Ticket</a>
      <li><a href="mailto:http://www.google.com">Email Support</a>
      </ul>
+
+     <script type="text/javascript">
+      var dd = new Date();
+      var hh = dd.getHours();
+      var mm = dd.getMinutes();
+      var ss = dd.getSeconds();
+      document.getElementById("debug_div").innerHTML = "End - " + hh + ':' + mm + ':' + ss;
+     </script>
 
      ]]>
   </Content> 
