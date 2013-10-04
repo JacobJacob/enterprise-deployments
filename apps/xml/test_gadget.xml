@@ -29,7 +29,7 @@
       var hh = dd.getHours();
       var mm = dd.getMinutes();
       var ss = dd.getSeconds();
-      document.getElementById("debug_div").innerHTML += "End - " + hh + ':' + mm + ':' + ss;
+      document.getElementById("debug_div").innerHTML += " End - " + hh + ':' + mm + ':' + ss;
      </script>
 
      ]]>
