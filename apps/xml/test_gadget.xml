@@ -13,10 +13,6 @@
      <li><a href="mailto:http://www.google.com">Email Support</a>
      </ul>
      <div id="debug_div" style="font-size:9pt; padding:5px; color: red;"></div>
-     <script type="text/javascript">
-       var debug_html = "debug text";
-       document.getElementById("debug_div").innerHTML = debug_html;
-     </script>
      ]]>
   </Content> 
 </Module>
