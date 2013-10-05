@@ -24,7 +24,7 @@
      <li><a href="mailto:http://www.google.com">Email Support</a>
      </ul>
 
-     HI NONNIE
+     console.log("This is invisible to the user");
 
      <script type="text/javascript">
       var dd = new Date();
