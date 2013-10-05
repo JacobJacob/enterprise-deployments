@@ -31,7 +31,7 @@
 
      <script type="text/javascript">
       for (var i=1; i < 300000; i++) {
-        d = new Date();
+        var d = new Date();
       }
       var dd = new Date();
       var hh = dd.getHours();
