@@ -30,6 +30,10 @@
 
 
      <script type="text/javascript">
+      var i = 0;
+      while (i<300) {
+        i++;
+      }
       var dd = new Date();
       var hh = dd.getHours();
       var mm = dd.getMinutes();
