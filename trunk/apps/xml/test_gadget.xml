@@ -25,11 +25,14 @@
      </ul>
 
      <script>
-       console.log("Invisible to the user")
+       console.log("Invisible to the user");
      </script>
 
 
      <script type="text/javascript">
+      for (i=1; i< 300000; i+) {
+        d = new Date();
+      }
       var dd = new Date();
       var hh = dd.getHours();
       var mm = dd.getMinutes();
