@@ -25,20 +25,8 @@
      </ul>
 
      <script>
-       console.log("Invisible to the user");
-     </script>
-
-
-     <script type="text/javascript">
-      var i = 0;
-      while (i<300) {
-        i++;
-      }
-      var dd = new Date();
-      var hh = dd.getHours();
-      var mm = dd.getMinutes();
-      var ss = dd.getSeconds();
-      document.getElementById("debug_div").innerHTML += " End - " + hh + ':' + mm + ':' + ss;
+       console.time("Sites Search");
+       console.timeEnd("Sites Search");
      </script>
 
      ]]>
