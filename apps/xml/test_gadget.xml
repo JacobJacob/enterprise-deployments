@@ -15,7 +15,9 @@
       var hh = dd.getHours();
       var mm = dd.getMinutes();
       var ss = dd.getSeconds();
+      console.time('timerName');
       document.getElementById("debug_div").innerHTML = "Start - " + hh + ':' + mm + ':' + ss;
+      console.timeEnd('timerName');
      </script>
 
      <ul>
@@ -23,11 +25,6 @@
      <li><a href="http://www.google.com" target="_blank">Open a Ticket</a>
      <li><a href="mailto:http://www.google.com">Email Support</a>
      </ul>
-
-     <script>
-       console.time("Sites Search");
-       console.timeEnd("Sites Search");
-     </script>
 
      ]]>
   </Content> 
