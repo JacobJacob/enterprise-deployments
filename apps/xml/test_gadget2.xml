@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?> 
+<Module>
+  <ModulePrefs title="The Example Help Desk Gadget"
+        author="User"
+        author_email="user@domain.com"
+  /> 
+  <UserPref name="displayedURL" display_name="URL to display" required="true"></UserPref>
+  <Content type="html" >
+     <![CDATA[ 
+
+       <p id="demo"></p>
+       <button onclick="myStopFunction()">Stop time</button>
+
+       <script>
+         var myVar=setInterval(function(){myTimer()},1000);
+
+         function myTimer() {
+           var d=new Date();
+           var t=d.toLocaleTimeString();
+           document.getElementById("demo").innerHTML=t;
+         }
+
+         function myStopFunction() {
+           clearInterval(myVar);
+         }
+       </script>
+
+     ]]>
+  </Content> 
+</Module>
