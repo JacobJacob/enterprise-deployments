@@ -8,23 +8,44 @@
   <Content type="html" >
      <![CDATA[ 
 
-     <div id="debug_div" style="font-size:9pt; padding:5px; color: red;"></div>
+     <div id="content_div"></div>
 
      <script type="text/javascript">
+
       var dd = new Date();
       var hh = dd.getHours();
       var mm = dd.getMinutes();
       var ss = dd.getSeconds();
-      console.time('timerName');
-      document.getElementById("debug_div").innerHTML = "Start - " + hh + ':' + mm + ':' + ss;
-      console.timeEnd('timerName');
-     </script>
 
-     <ul>
-     <li><a href="http://www.google.com" target="_blank">Help Site</a>
-     <li><a href="http://www.google.com" target="_blank">Open a Ticket</a>
-     <li><a href="mailto:http://www.google.com">Email Support</a>
-     </ul>
+      console.log("Start - " + hh + ':' + mm + ':' + ss);
+
+      console.time('timerName');
+      console.timeEnd('timerName');
+
+      function getHtml() {    
+        var params = {};  
+        params[gadgets.io.RequestParameters.CONTENT_TYPE] = gadgets.io.ContentType.TEXT;  
+        var url = "http://www.google.com";  
+        gadgets.io.makeRequest(url, response, params);
+      };
+
+      function response(obj) {  
+        //obj.text contains the text of the page that was requested  
+        var str = obj.text;
+        var html =  str.substr(0,400);  
+        document.getElementById('content_div').innerHTML = html;
+      };
+
+      var dd = new Date();
+      var hh = dd.getHours();
+      var mm = dd.getMinutes();
+      var ss = dd.getSeconds();
+
+      console.log("End - " + hh + ':' + mm + ':' + ss);
+     
+      gadgets.util.registerOnLoadHandler(getHtml);
+
+     </script>
 
      ]]>
   </Content> 
