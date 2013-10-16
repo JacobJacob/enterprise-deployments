@@ -12,6 +12,8 @@
 
      <script type="text/javascript">
 
+      console.time('EntireScript');
+
       var dd = new Date();
       var hh = dd.getHours();
       var mm = dd.getMinutes();
@@ -19,14 +21,35 @@
 
       console.log("Start - " + hh + ':' + mm + ':' + ss);
 
-      console.time('timerName');
-      console.timeEnd('timerName');
 
       function getHtml() {    
         var params = {};  
         params[gadgets.io.RequestParameters.CONTENT_TYPE] = gadgets.io.ContentType.TEXT;  
         var url = "https://enterprise-deployments.googlecode.com/svn/trunk/apps/utils/GoogleAppsDomains.txt";  
+        console.time('makeRequests');
         gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        gadgets.io.makeRequest(url, response, params);
+        console.timeEnd('makeRequests');
       };
 
       function response(obj) {  
@@ -43,6 +66,7 @@
 
       console.log("End - " + hh + ':' + mm + ':' + ss);
      
+      console.timeEnd('EntireScript');
       gadgets.util.registerOnLoadHandler(getHtml);
 
      </script>
