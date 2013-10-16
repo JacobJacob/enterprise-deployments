@@ -8,21 +8,16 @@
   <Content type="html" >
      <![CDATA[ 
 
-       <p id="demo"></p>
-       <button onclick="myStopFunction()">Stop time</button>
-
        <script>
-         var myVar=setInterval(function(){myTimer()},1000);
-
-         function myTimer() {
-           var d=new Date();
-           var t=d.toLocaleTimeString();
-           document.getElementById("demo").innerHTML=t;
+         function pausecomp(millis) {
+           var date = new Date();
+           var curDate = null;
+           do { curDate = new Date(); }
+             while(curDate-date < millis);
          }
 
-         function myStopFunction() {
-           clearInterval(myVar);
-         }
+         var f = pausecomp(10000);
+ 
        </script>
 
      ]]>
