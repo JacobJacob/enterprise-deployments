@@ -30,7 +30,7 @@
       function getHtml() {    
         var params = {};  
         params[gadgets.io.RequestParameters.CONTENT_TYPE] = gadgets.io.ContentType.TEXT;  
-        var url = "https://espn.go.com";  
+        var url = "https://cnn.coq";  
         console.time('makeRequests');
         gadgets.io.makeRequest(url, response, params);
         console.timeEnd('makeRequests');
