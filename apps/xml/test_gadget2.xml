@@ -20,7 +20,9 @@
              while(curDate-date < millis);
          }
 
+         console.profile("Running pausecomp");
          var f = pausecomp(5000);
+         console.profileEnd();
 
          console.timeEnd('TestGadget2Timer');
  
