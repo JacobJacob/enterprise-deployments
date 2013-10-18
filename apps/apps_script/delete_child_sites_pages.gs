@@ -42,7 +42,7 @@ function deleteChildPages() {
   // Retrieve and delete all child pages
   for (var p in child_pages) {
 
-    Logger.log("Deleting page: [" + child_pages[p].getName() + "]");
+    Logger.log("Deleting Pagename:[" + child_pages[p].getName() + "] Url:[" + child_pages[p].getUrl() + "]");
 
     // To actually delete the pages after testing, uncomment this line:
     //child_pages[p].deletePage();      
