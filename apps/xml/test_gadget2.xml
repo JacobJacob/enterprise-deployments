@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?> 
 <Module>
-  <ModulePrefs title="Test Gadget"
+  <ModulePrefs title="Test Gadget 2"
         author="User"
         author_email="user@domain.com"
   /> 
@@ -10,7 +10,7 @@
 
        <script>
 
-         console.time('TestGadgetTimer');         
+         console.time('TestGadget2Timer');         
 
          function pausecomp(millis) {
            var date = new Date();
@@ -20,9 +20,9 @@
              while(curDate-date < millis);
          }
 
-         var f = pausecomp(10000);
+         var f = pausecomp(5000);
 
-         console.timeEnd('TestGadgetTimer');
+         console.timeEnd('TestGadget2Timer');
  
        </script>
 
