@@ -15,14 +15,11 @@
          function pausecomp(millis) {
            var date = new Date();
            var curDate = null;
-           console.timeStamp();
            do { curDate = new Date(); }
              while(curDate-date < millis);
          }
 
-         console.profile("Running pausecomp");
          var f = pausecomp(5000);
-         console.profileEnd();
 
          console.timeEnd('TestGadget2Timer');
  
