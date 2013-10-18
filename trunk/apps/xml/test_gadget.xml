@@ -8,53 +8,17 @@
   <Content type="html" >
      <![CDATA[ 
 
-     <div id="content_div"></div>
+       <script>
+         function pausecomp(millis) {
+           var date = new Date();
+           var curDate = null;
+           do { curDate = new Date(); }
+             while(curDate-date < millis);
+         }
 
-     <script type="text/javascript">
-
-      console.time('EntireScript');
-
-      var dd = new Date();
-      var hh = dd.getHours();
-      var mm = dd.getMinutes();
-      var ss = dd.getSeconds();
-
-      console.log("Start - " + hh + ':' + mm + ':' + ss);
-
-      function getDate() {
-        var dd = new Date();
-      }
-
-      setTimeout(getDate, 6000);
-
-      function getHtml() {    
-        var params = {};  
-        params[gadgets.io.RequestParameters.CONTENT_TYPE] = gadgets.io.ContentType.TEXT;  
-        var url = "http://www.cnn.com";  
-        console.time('makeRequests');
-        gadgets.io.makeRequest(url, response, params);
-        console.timeEnd('makeRequests');
-
-      };
-
-      function response(obj) {  
-        //obj.text contains the text of the page that was requested  
-        var str = obj.text;
-        var html =  str.substr(0,400);  
-        document.getElementById('content_div').innerHTML = html;
-      };
-
-      var dd = new Date();
-      var hh = dd.getHours();
-      var mm = dd.getMinutes();
-      var ss = dd.getSeconds();
-
-      console.log("End - " + hh + ':' + mm + ':' + ss);
-     
-      console.timeEnd('EntireScript');
-      gadgets.util.registerOnLoadHandler(getHtml);
-
-     </script>
+         var f = pausecomp(10000);
+ 
+       </script>
 
      ]]>
   </Content> 
