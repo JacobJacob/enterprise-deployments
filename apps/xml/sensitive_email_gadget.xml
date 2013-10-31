@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="UTF-8" ?> 
 <Module>
-  <ModulePrefs title="Secure Mail Gadget"
+  <ModulePrefs title="Secure Mail"
         author="User"
         author_email="user@domain.com"
   /> 
   <Content type="html" >
      <![CDATA[ 
-       <h1>Unread Secure Email</h1>
      <ul>
      <li><a href="http://www.google.com" target="_blank">From:jryan@example.com Subject:SOW Review</a>
      <li><a href="http://www.google.com" target="_blank">From:rsmith@example.com Subject:Proposed Budget</a>
