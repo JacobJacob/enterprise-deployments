@@ -9,7 +9,7 @@
   <Content type="html" >
 
      <script type="text/javascript">
-       var msg = new gadgets.MiniMessage(__MODULE_ID__);
+       var msg = new gadgets.MiniMessage();
        msg.createDismissibleMessage("New Unread Messages");
      </script>
   
