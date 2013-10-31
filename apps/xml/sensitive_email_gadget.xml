@@ -7,13 +7,12 @@
     <Require feature="minimessage"/> 
   </ModulePrefs>
   <Content type="html" >
-
+    <![CDATA[ 
      <script type="text/javascript">
        var msg = new gadgets.MiniMessage();
        msg.createDismissibleMessage("New Unread Messages");
      </script>
   
-     <![CDATA[ 
      <a href="http://www.google.com" target="_blank">From:jryan@example.com Subject:SOW Review</a>
      <hr/>
      <a href="http://www.google.com" target="_blank">From:rsmith@example.com Subject:Proposed Budget</a>
