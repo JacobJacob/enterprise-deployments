@@ -3,9 +3,16 @@
   <ModulePrefs title="Secure Mail"
         height="100"
         author="User"
-        author_email="user@domain.com"
-  /> 
+        author_email="user@domain.com">
+    <Require feature="minimessage"/> 
+  </ModulePrefs>
   <Content type="html" >
+
+     <script type="text/javascript">
+       var msg = new gadgets.MiniMessage(__MODULE_ID__);
+       msg.createDismissibleMessage("New Unread Messages");
+     </script>
+  
      <![CDATA[ 
      <a href="http://www.google.com" target="_blank">From:jryan@example.com Subject:SOW Review</a>
      <hr/>
