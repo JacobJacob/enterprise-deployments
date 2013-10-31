@@ -6,13 +6,16 @@
   /> 
   <Content type="html" >
      <![CDATA[ 
-     <ul>
-     <li><a href="http://www.google.com" target="_blank">From:jryan@example.com Subject:SOW Review</a>
-     <li><a href="http://www.google.com" target="_blank">From:rsmith@example.com Subject:Proposed Budget</a>
-     <li><a href="http://www.google.com" target="_blank">From:tevans@example.com Subject:Prepared documents</a>
-     <li><a href="http://www.google.com" target="_blank">From:bsullivan@example.com Subject:Open Questions</a>
-     <li><a href="http://www.google.com" target="_blank">From:ktrin@example.com Subject:Meeting Next Week</a>
-     </ul>
+     <a href="http://www.google.com" target="_blank">From:jryan@example.com Subject:SOW Review</a>
+     <hr/>
+     <a href="http://www.google.com" target="_blank">From:rsmith@example.com Subject:Proposed Budget</a>
+     <hr/>
+     <a href="http://www.google.com" target="_blank">From:tevans@example.com Subject:Prepared documents</a>
+     <hr/>
+     <a href="http://www.google.com" target="_blank">From:bsullivan@example.com Subject:Open Questions</a>
+     <hr/>
+     <a href="http://www.google.com" target="_blank">From:ktrin@example.com Subject:Meeting Next Week</a>
+     <hr/>
      ]]>
   </Content> 
 </Module>
