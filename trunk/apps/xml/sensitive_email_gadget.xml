@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?> 
+<Module>
+  <ModulePrefs title="Secure Mail Gadget"
+        author="User"
+        author_email="user@domain.com"
+  /> 
+  <Content type="html" >
+     <![CDATA[ 
+       <h1>Unread Secure Email</h1>
+     <ul>
+     <li><a href="http://www.google.com" target="_blank">From:jryan@example.com Subject:SOW Review</a>
+     <li><a href="http://www.google.com" target="_blank">From:rsmith@example.com Subject:Proposed Budget</a>
+     <li><a href="http://www.google.com" target="_blank">From:tevans@example.com Subject:Prepared documents</a>
+     <li><a href="http://www.google.com" target="_blank">From:bsullivan@example.com Subject:Open Questions</a>
+     <li><a href="http://www.google.com" target="_blank">From:ktrin@example.com Subject:Meeting Next Week</a>
+     </ul>
+     ]]>
+  </Content> 
+</Module>
