@@ -28,3 +28,4 @@
 *gstatic.com*
 *ggpht.com*
 *ytimg.com*
+*googlevideo.com*
