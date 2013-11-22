@@ -25,7 +25,7 @@
 *googleadservices.com*
 *googleapis.com*
 *googleusercontent.com*
+*googlevideo.com*
 *gstatic.com*
 *ggpht.com*
 *ytimg.com*
-*googlevideo.com*
