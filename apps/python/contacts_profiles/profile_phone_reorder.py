@@ -66,8 +66,9 @@ PHONE_ORDER = [
     'telex',
     'tty_tdd',
     'other',
-    'other_fax'
+    'other_fax',
 ]
+# Don't remove any of the commas. They're there so that when users reorder the list, there are no errors.
 
 import datetime
 import logging
