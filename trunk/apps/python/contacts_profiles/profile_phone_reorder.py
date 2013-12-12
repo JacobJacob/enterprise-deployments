@@ -66,7 +66,7 @@ PHONE_ORDER = [
     'telex',
     'tty_tdd',
     'other',
-    'other_fax',
+    'other_fax'
 ]
 
 import datetime
