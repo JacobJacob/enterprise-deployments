@@ -1,12 +1,13 @@
 /*********************************************************************
-*                            DriveScoop                              *
+*                           Label Tamer                              *
 **********************************************************************
-   A Google Apps Script that automatically moves messages and
-   attachments from labels in the Scoop hierarchy to folders in
-   Google Drive.
+   A Google Apps Script and spreadsheet that assists in taming
+   out-of-control Gmail labels.
 **********************************************************************
 *                      LICENSING AND DISCLAIMER                      *
 **********************************************************************
+   Copyright 2014 Google Inc. All Rights Reserved.
+
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
@@ -29,231 +30,120 @@
    TO USE, MODIFICATION OR DISTRIBUTION OF THIS CODE OR ITS
    DERIVATIVES.
 **********************************************************************
-*                     INSTALLATION INSTRUCTIONS                      *
+*                            INSTRUCTIONS                            *
 **********************************************************************
-   1. Create (or reuse) a Google Spreadsheet.
-      Recommend using one called "Gmail Automation".
-   2. In the spreadsheet, click 'Tools' > 'Script Editor'.
-   3. In the Script Editor, click 'File' > 'New' > 'File'.
-   4. Create a new file named 'DriveScoop'.
-   5. In the editor pane, with the 'DriveScoop.gs' tab selected, paste
-      the full contents of this script.
-   6. In Gmail, create a label called "Scoop".
-   7. Create labels nested under the "Scoop" label, each of which will
-      be processed by DriveScoop.
-   8. Optionally create filters to automate placing messages of a
-      particular sort in a Scoop label.addToThread(
-   9. Back in the Script Editor, click 'Run' > 'DriveScoop' and grant
-      DriveScoop with authorization to modify your Drive contents and
-      your Gmail by clicking 'Authorize' and/or 'Grant Access'.
-  10. Back in the Script Editor, click 'Resources' > 'Current Script's
-      Triggers'.
-  11. Set up a trigger to run 'DriveScoop' as a 'Time-driven' script
-      using the 'Hours timer' set for 'Every hour'.
-  12. Optionally add a 'notification' to alert of any script run-time
-      issues.
-  13. Click 'Save' and this script should begin to function.
-**********************************************************************
-*                      OPERATING INSTRUCTIONS                        *
-**********************************************************************
-   Any message that gets placed in a label under Scoop should be
-   added as a Google Doc (including attachments) in a Drive folder of
-   the same name as the Scoop label.
+   1. Make a copy of the spreadsheet associated with
+      this programming, which can be found at:
+        https://docs.google.com/spreadsheet/ccc?key=0AsDqHqrjcsSMdHh0WVJXWkRfVjhOX3FBT19uRnpIUUE&usp=sharing
+   2. Open 'Label Tamer' > 'Step 1: Authorize'. Accept the permissions.							
+   3. Open 'Label Tamer' > 'Step 2: Collect labels'.							   
+   4. For each label in Column A select an action in Column B.
+      Options for Column B are:
+        Keep   - keep the label
+        Delete - delete the label
+        Rename - rename the label
+        Move   - move all messages in this label to a
+                 different label 
+      If you select 'Move' or 'Rename', add a label name in
+      column C.						
+   5. Open 'Label Tamer' > 'Step 3: Process changes'.							
+   6. While iterating through the labels, Column B will be
+      updated with a current status. If processing a large
+      number of labels, this function may time out after five
+      minutes. Re-run the function and it will pick up where
+      it left off.				                              
 *********************************************************************/
-function DriveScoop() {
-  // Needed shorter names to maintain a max line length of 70.
-  var paragraph_heading = DocumentApp.ParagraphHeading;
-  var attribute = DocumentApp.Attribute;
 
-  // Iterate through each label, looking only for ones beginning
-  // with Scoop.
+function onOpen() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet();
+  sheet.addMenu('Label Tamer', [
+      { name: 'Step 1: Authorize', 
+        functionName: 'AddAllLabelsToSheet' },
+      { name: 'Step 2: Collect labels', 
+        functionName: 'AddAllLabelsToSheet' },
+      { name: 'Step 3: Process changes', 
+        functionName: 'ProcessLabelsFromSheet' }
+    ]);
+}
+
+function AddAllLabelsToSheet() {
   var labels = GmailApp.getUserLabels();
-  for(label_number = 0;
-      label_number < labels.length;
-      label_number++) {
-    var label = labels[label_number];
-    var label_name = label.getName();
-    var label_match = label_name.match(/^Scoop\//);
-    if(label_match) {
-      var folder_name = label_name.slice(label_match[0].length);
+  var sheet = SpreadsheetApp.getActiveSheet();
+  
+  for(var row_i = 0; row_i < labels.length; ++row_i) {
+    sheet.appendRow([labels[row_i].getName(), '', '']);
+  }
+}
 
-      var folder = GetFolderIfExists(folder_name);
-      if(! folder) {
-        folder = DocsList.createFolder(folder_name);
-      }
-
-      // Iterate through ten threads at a time. I don't remember
-      // why...
-      var thread_batch = 10;
-      var thread_start = 0;
-      var thread_end = false;
-      while(thread_end == false) {
-        var threads = label.getThreads(thread_start, thread_batch);
-
-        if(threads.length < thread_batch) {
-          thread_end = true;
+function ProcessLabelsFromSheet() {
+  var sheet = SpreadsheetApp.getActiveSheet();
+  var rows = sheet.getDataRange();
+  var values = rows.getValues();
+  
+  for(var row_i = 9; row_i < rows.getNumRows(); ++row_i) {
+    var row = values[row_i];
+    if(row[1].toLowerCase() == 'delete') {
+      Logger.log('Deleting ' + row[0]);
+      
+      try {
+        var label = GmailApp.getUserLabelByName(row[0]);
+        label.deleteLabel();
+        var cell = rows.getCell(row_i + 1, 2);
+        cell.setValue(['deleted']);
+      } catch(err) {
+        Logger.log("Label doesn't exist.");
+        var cell = rows.getCell(row_i + 1, 2);
+        cell.setValue(['deleted']);
+      }      
+    } else if(row[1].toLowerCase() == 'move') {
+      Logger.log('Moving messages in label ' + row[0] + ' to label ' + row[2]);
+      
+      try {
+        var old_label = GmailApp.getUserLabelByName(row[0]);
+        var new_label = GmailApp.getUserLabelByName(row[2]);
+        var threads = old_label.getThreads();
+        for(thread_i = 0; thread_i < threads.length; ++thread_i) {
+          var thread = threads[thread_i];
+         thread.addLabel(new_label);
+         thread.removeLabel(old_label);
         }
-
-        for(var thread_count = 0;
-            thread_count < threads.length;
-            thread_count++) {
-          var thread = threads[thread_count];
-          var messages = thread.getMessages();
-
-          // Iterate through each message in the thread.
-          for(var message_count = 0;
-              message_count < messages.length;
-              message_count++) {
-            var message = messages[message_count];
-            var attachments = message.getAttachments();
-            if(attachments.length == 0) {
-              message.moveToTrash();
-              continue;
-            }
-
-            // Grab the message's headers.
-            var from = message.getFrom();
-            var subject = message.getSubject();
-            var to = message.getTo();
-            var cc = message.getCc();
-            var date = message.getDate();
-            var body = message.getBody();
-
-            // Begin creating a doc.
-            var document = DocumentApp.create(subject +
-                                              " [" + date + "]");
-
-            var document_title = document.appendParagraph(subject);
-
-            document_title.setHeading(paragraph_heading.HEADING1);
-            var style = {};
-            style[attribute.HORIZONTAL_ALIGNMENT] = (
-              DocumentApp.HorizontalAlignment.CENTER);
-            document_title.setAttributes(style);
-
-            var headers_heading = (
-              document.appendParagraph("Key Message Headers"));
-            headers_heading.setHeading(
-              DocumentApp.ParagraphHeading.HEADING2);
-
-            AddHeaderToDoc(document, "From", from);
-            AddHeaderToDoc(document, "To", to);
-            AddHeaderToDoc(document, "Cc", cc);
-            AddHeaderToDoc(document, "Date", date);
-            AddHeaderToDoc(document, "Subject", subject);
-
-            if(attachments.length) {
-              var attachments_heading = (
-                document.appendParagraph("Attachments"));
-              attachments_heading.setHeading(
-                paragraph_heading.HEADING2);
-
-              for(var attachment_count = 0;
-                  attachment_count < attachments.length;
-                  attachment_count++) {
-                var attachment = attachments[attachment_count];
-
-                var file = folder.createFile(attachment);
-                Utilities.sleep(1000);
-
-                var attachment_name = file.getName();
-                var attachment_url = file.getUrl();
-
-                var paragraph = (
-                  document.appendParagraph(attachment_name));
-                paragraph.setIndentStart(72.0);
-                paragraph.setIndentFirstLine(36.0);
-                paragraph.setSpacingBefore(0.0);
-                paragraph.setSpacingAfter(0.0);
-                paragraph.setLinkUrl(attachment_url);
-              }
-            }
-
-            var body_heading = (
-              document.appendParagraph("Body (without Markup)"));
-            body_heading.setHeading(paragraph_heading.HEADING2);
-
-            var sanitized_body = body.replace(/<\/div>/, "\r\r");
-            sanitized_body = sanitized_body.replace(/<br.*?>/g, "\r");
-            sanitized_body = sanitized_body.replace(/<\/p>/g, "\r\r");
-            sanitized_body = sanitized_body.replace(/<.*?>/g, "");
-            sanitized_body = sanitized_body.replace(/&#39;/g, "'");
-            sanitized_body = sanitized_body.replace(/&quot;/g, '"');
-            sanitized_body = sanitized_body.replace(/&amp;/g, "&");
-            sanitized_body = sanitized_body.replace(/\r\r\r/g,
-                                                    "\r\r");
-            var paragraph = document.appendParagraph(sanitized_body);
-
-            var body_heading = (
-              document.appendParagraph("Body (original)"));
-            body_heading.setHeading(paragraph_heading.HEADING2);
-
-            var paragraph = document.appendParagraph(body);
-
-            var id = document.getId();
-            document.saveAndClose();
-
-            var document_record = DocsList.getFileById(id);
-            document_record.addToFolder(folder);
-
-            message.moveToTrash();
+      
+        if(old_label.getThreads() == 0) {
+          old_label.deleteLabel();
+          var cell = rows.getCell(row_i + 1, 2);
+          cell.setValue(['moved to']);
+        }
+      } catch(err) {
+        Logger.log("One of the labels doesn't exist.");
+        var cell = rows.getCell(row_i + 1, 2);
+        cell.setValue(['moved to']);
+      }
+    } else if(row[1].toLowerCase() == 'rename') {
+      Logger.log('Renaming label ' + row[0] + ' to ' + row[2] + '.');
+      
+      try {
+        var old_label = GmailApp.getUserLabelByName(row[0]);
+        var new_label = GmailApp.createLabel(row[2]);
+        
+        var more_threads = true;
+        while(more_threads) {
+          var threads = old_label.getThreads(0, 100);
+          
+          if(threads.length == 0) {
+            more_threads = false;
           }
-        }
 
-        thread_start += threads.length;
+          new_label.addToThreads(threads);
+          old_label.removeFromThreads(threads);
+        }
+        
+        old_label.deleteLabel();
+        
+        var cell = rows.getCell(row_i + 1, 2);
+        cell.setValue(['renamed to']);
+      } catch(err) {
+        Logger.log("One of the labels doesn't exist.");
       }
     }
-  }
-}
-
-
-function GetFolderIfExists(folder_name) {
-/* Specify a Folder object by name.
-
-   Arguments:
-     folder_name: a String containing the name of a
-                  folder
-
-   Returns:
-     If the folder exists, returns the folder as a Folder object, otherwise
-     returns null.
-*/
-  var folders = DocsList.getFolders();
-
-  for(var folder_number = 0;
-      folder_number < folders.length;
-      folder_number++) {
-    var folder = folders[folder_number];
-    if(folder_name == folder.getName()) {
-      return folder;
-    }
-  }
-
-  return null;
-}
-
-
-function AddHeaderToDoc(document, header_name, header_value) {
-/* Adds a formatted Email header to a Google Doc.
-
-   Arguments:
-     document: a Document object to add the header to
-     header_name: a String containing the name of the header
-     header_value: a String containing the value of the header
-
-   Returns:
-     Nothing
-*/
-  if(header_value) {
-    var paragraph = document.appendParagraph("");
-    paragraph.setIndentStart(72.0);
-    paragraph.setIndentFirstLine(36.0);
-    paragraph.setSpacingBefore(0.0);
-    paragraph.setSpacingAfter(0.0);
-
-    var name = paragraph.appendText(header_name + ": ");
-    name.setBold(false);
-    var value = paragraph.appendText(header_value);
-    value.setBold(true);
   }
 }
