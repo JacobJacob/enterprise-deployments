@@ -35,9 +35,9 @@
    1. Make a copy of the spreadsheet associated with
       this programming, which can be found at:
         https://docs.google.com/spreadsheet/ccc?key=0AsDqHqrjcsSMdHh0WVJXWkRfVjhOX3FBT19uRnpIUUE&usp=sharing
-   2. Open 'Tools' > 'Script editor...' and run the 
-      'AddAllLabelsToSheet' function. Accept the permissions.							
-   3. For each label in Column A select an action in Column B.
+   2. Open 'Label Tamer' > 'Step 1: Authorize'. Accept the permissions.							
+   3. Open 'Label Tamer' > 'Step 2: Collect labels'.							   
+   4. For each label in Column A select an action in Column B.
       Options for Column B are:
         Keep   - keep the label
         Delete - delete the label
@@ -45,15 +45,26 @@
         Move   - move all messages in this label to a
                  different label 
       If you select 'Move' or 'Rename', add a label name in
-      column C.							
-   4. In the 'Script editor...' run the 
-      'ProcessLabelsFromSheet' function. Accept the permissions.							
-   5. While iterating through the labels, Column B will be
+      column C.						
+   5. Open 'Label Tamer' > 'Step 3: Process changes'.							
+   6. While iterating through the labels, Column B will be
       updated with a current status. If processing a large
       number of labels, this function may time out after five
       minutes. Re-run the function and it will pick up where
       it left off.				                              
 *********************************************************************/
+
+function onOpen() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet();
+  sheet.addMenu('Label Tamer', [
+      { name: 'Step 1: Authorize', 
+        functionName: 'AddAllLabelsToSheet' },
+      { name: 'Step 2: Collect labels', 
+        functionName: 'AddAllLabelsToSheet' },
+      { name: 'Step 3: Process changes', 
+        functionName: 'ProcessLabelsFromSheet' }
+    ]);
+}
 
 function AddAllLabelsToSheet() {
   var labels = GmailApp.getUserLabels();
@@ -69,7 +80,7 @@ function ProcessLabelsFromSheet() {
   var rows = sheet.getDataRange();
   var values = rows.getValues();
   
-  for(var row_i = 8; row_i < rows.getNumRows(); ++row_i) {
+  for(var row_i = 9; row_i < rows.getNumRows(); ++row_i) {
     var row = values[row_i];
     if(row[1].toLowerCase() == 'delete') {
       Logger.log('Deleting ' + row[0]);
