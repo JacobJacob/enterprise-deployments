@@ -194,6 +194,10 @@ function _ParentLabelChecker() {
        remove the original label. */
     var old_label = GmailApp.getUserLabelByName(label_name);
     var new_label = GmailApp.createLabel('_' + label_name);
+    // If your goal is to simply remove the label from the system label,
+    // comment out the above line and remove the comments for the
+    // following:
+    //var new_label = GmailApp.createLabel(label_name.split('/').slice(1).join('/'));
 
     Logger.log('Moving threads from ' + label_name + ' to _' + label_name);
     
